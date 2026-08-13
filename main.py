@@ -4,6 +4,8 @@ import json
 import asyncio
 import random
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # חובה להופיע לפני היבוא של pyplot!
 import matplotlib.pyplot as plt
 import yfinance as yf
 import edge_tts
