@@ -417,10 +417,10 @@ def render_final_video():
     else:
         parsed_tags = []
     upload_video(
-        output_filename,
-        script_data.get('youtube_title'),
-        script_data.get('description'),
-        tags
+        file_path=output_filename,
+        title=script_data.get('youtube_title'),
+        description=script_data.get('description'),
+        tags=tags
     )
     print(f"🚀 Uploaded To YouTube: {script_data.get('youtube_title')}")
 
