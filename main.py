@@ -4,6 +4,7 @@ import json
 import asyncio
 import random
 import numpy as np
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 import matplotlib
 matplotlib.use('Agg')  # חובה להופיע לפני היבוא של pyplot!
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ from google.genai import types
 from moviepy.editor import (
     AudioFileClip, ImageClip, VideoClip, CompositeVideoClip
 )
-
+from uploader import upload_video
 import imageio_ffmpeg
 
 # -----------------------------------------------------------------------------
@@ -317,6 +318,7 @@ def make_animated_chart_video(stock_data, duration, size=(1080, 1920)):
     bg_color = "#0B0E14"
 
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
+    canvas = FigureCanvasAgg(fig)  # כפיית הקנווס של Agg באופן ישיר!
 
     def make_frame(t):
         ax.clear()
@@ -331,36 +333,14 @@ def make_animated_chart_video(stock_data, duration, size=(1080, 1920)):
         ax.fill_between(range(len(sub_prices)), sub_prices, min(prices), color=line_color, alpha=0.18)
 
         ax.axis("off")
-        fig.canvas.draw()
+        canvas.draw()  # ציור דרך ה-canvas המפורש
 
-        rgba = np.asarray(fig.canvas.buffer_rgba())
+        rgba = np.asarray(canvas.buffer_rgba())
         return rgba[:, :, :3]
 
     video_clip = VideoClip(make_frame, duration=duration)
     plt.close(fig)
     return video_clip
-
-
-def upload_to_youtube(filename, title, description, tags):
-    uploader = YouTubeUploader()
-
-    # טיפול בטאגים (המרה מרשימה או מחרוזת מופרדת בפסיקים)
-    if isinstance(tags, str):
-        parsed_tags = [t.strip() for t in tags.split(",") if t.strip()]
-    else:
-        parsed_tags = tags
-
-    video_to_upload = {
-        'file_path': filename,
-        'title': title,
-        'description': description,
-        'tags': parsed_tags,
-        'category_id': '24',
-        'privacy_status': 'public',
-        'auto_delete': True  # מוחק את הקובץ בסיום ההעלאה
-    }
-
-    uploader.upload_video(**video_to_upload)
 
 # -----------------------------------------------------------------------------
 # 7. הרכבה ורינדור סופי של הווידאו
@@ -429,11 +409,18 @@ def render_final_video():
                 pass
 
     print(f"\n✅ SUCCESS! Video saved as: {output_filename}")
-    upload_to_youtube(
+    tags = script_data.get('tags')
+    if isinstance(tags, str):
+        parsed_tags = [t.strip() for t in tags.split(",") if t.strip()]
+    elif isinstance(tags, list):
+        parsed_tags = tags
+    else:
+        parsed_tags = []
+    upload_video(
         output_filename,
         script_data.get('youtube_title'),
         script_data.get('description'),
-        script_data.get('tags')
+        tags
     )
     print(f"🚀 Uploaded To YouTube: {script_data.get('youtube_title')}")
 
