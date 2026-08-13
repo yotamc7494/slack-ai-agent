@@ -21,7 +21,6 @@ from moviepy.editor import (
 )
 
 import imageio_ffmpeg
-from uploader import YouTubeUploader
 
 # -----------------------------------------------------------------------------
 # 0. התאמת FFmpeg לחלונות (בלינוקס/Streamlit יילקח ה-FFmpeg המערכתי)
