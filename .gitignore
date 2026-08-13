@@ -12,7 +12,6 @@ ffmpeg.exe
 *.png
 temp_cap_*.png
 overlay_graphics.png
-used_stocks.json
 
 # --- סביבות פייתון ומטמון ---
 __pycache__/
