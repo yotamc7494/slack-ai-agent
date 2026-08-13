@@ -1,0 +1,25 @@
+# --- אבטחה ומפתחות סודיים (קריטי!) ---
+.env
+client_secrets.json
+token.pickle
+
+# --- קבצים בינאריים וכבדים ---
+ffmpeg.exe
+
+# --- קבצים זמניים ומדיה שמופקת בזמן ריצה ---
+*.mp4
+*.mp3
+*.png
+temp_cap_*.png
+overlay_graphics.png
+used_stocks.json
+
+# --- סביבות פייתון ומטמון ---
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# --- הגדרות סביבת עבודה וסביבת מערכת ---
+.idea/
+.DS_Store

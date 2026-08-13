@@ -1,0 +1,8 @@
+slack-bolt
+litellm
+pinecone
+google-genai
+apscheduler
+duckduckgo_search
+edge-tts
+python-dotenv
