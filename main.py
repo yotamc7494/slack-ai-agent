@@ -304,26 +304,54 @@ def get_exact_captions_with_whisper(audio_file, words_per_caption=2):
 # 4. מחולל הגרפיקה
 # -----------------------------------------------------------------------------
 def load_system_font(size):
-    font_candidates = ["impact.ttf", "ariblk.ttf", "arialbd.ttf", "trebucbd.ttf", "verdana.ttf"]
-    for font_name in font_candidates:
+    # 1. עדיפות ראשונה: פונט מקומי בתיקיית הפרויקט (תוריד קובץ ttf לתיקייה)
+    local_fonts = ["Roboto-Bold.ttf", "Montserrat-Bold.ttf", "arial.ttf"]
+    for font_file in local_fonts:
+        if os.path.exists(font_file):
+            try:
+                return ImageFont.truetype(font_file, size)
+            except Exception:
+                pass
+
+    # 2. עדיפות שנייה: נתיבים של Linux/Ubuntu בשרתי ענן
+    linux_fonts = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"
+    ]
+    for font_path in linux_fonts:
+        try:
+            return ImageFont.truetype(font_path, size)
+        except Exception:
+            continue
+
+    # 3. עדיפות שלישית: שמות פונטים של Windows
+    windows_fonts = ["impact.ttf", "ariblk.ttf", "arialbd.ttf", "trebucbd.ttf"]
+    for font_name in windows_fonts:
         try:
             return ImageFont.truetype(font_name, size)
         except Exception:
             continue
-    return ImageFont.load_default()
+
+    # 4. Fallback אחרון עם הגדרת גודל מפורשת (נתמך ב-Pillow מעל גרסה 10.1)
+    try:
+        return ImageFont.load_default(size=size)
+    except Exception:
+        return ImageFont.load_default()
 
 def create_overlay_graphics(script_data, stock_data, canvas_size=(1080, 1920)):
     canvas = Image.new('RGBA', canvas_size, (0, 0, 0, 0))
 
     headline_text = script_data.get("overlay_headline", f"{stock_data['symbol']} MOVES!").upper()
-    font_size = 90 if len(headline_text) < 15 else 70
+    font_size = 85 if len(headline_text) < 15 else 65
     font = load_system_font(font_size)
 
     neon_colors = ["#FFD700", "#00FFFF", "#FF3366", "#33FF57", "#FF9900", "#FFFFFF"]
     chosen_color = random.choice(neon_colors)
-    rotation_angle = random.uniform(-12.0, 12.0)
+    rotation_angle = random.uniform(-8.0, 8.0)
 
-    text_box_size = (1000, 300)
+    # 1. יצירת תיבת טקסט מוגדלת לכותרת
+    text_box_size = (1000, 350)
     text_img = Image.new('RGBA', text_box_size, (0, 0, 0, 0))
     draw_text = ImageDraw.Draw(text_img)
 
@@ -331,32 +359,36 @@ def create_overlay_graphics(script_data, stock_data, canvas_size=(1080, 1920)):
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx, ty = (text_box_size[0] - tw) / 2, (text_box_size[1] - th) / 2
 
-    draw_text.text((tx, ty), headline_text, font=font, fill=chosen_color, stroke_width=10, stroke_fill="black")
+    draw_text.text((tx, ty), headline_text, font=font, fill=chosen_color, stroke_width=12, stroke_fill="black")
     rotated_text = text_img.rotate(rotation_angle, expand=True, resample=Image.Resampling.BICUBIC)
 
-    rx, ry = int((canvas_size[0] - rotated_text.width) / 2), 180
+    rx, ry = int((canvas_size[0] - rotated_text.width) / 2), 220
     canvas.paste(rotated_text, (rx, ry), rotated_text)
 
+    # 2. יצירת הבאדג' של האחוזים והמחיר
     pct = stock_data['change_pct']
-    pct_text = f"+{pct}%" if pct >= 0 else f"{pct}%"
+    pct_text = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
     pct_color = "#00E676" if pct >= 0 else "#FF1744"
-    price_text = f"${stock_data['current_price']}"
+    price_text = f"${stock_data['current_price']:.2f}"
 
     badge_img = Image.new('RGBA', (900, 450), (0, 0, 0, 0))
     draw_badge = ImageDraw.Draw(badge_img)
 
-    pct_font = load_system_font(140)
+    pct_font = load_system_font(130)
     price_font = load_system_font(75)
 
+    # ציור אחוז השינוי
     p_bbox = draw_badge.textbbox((0, 0), pct_text, font=pct_font)
     pw = p_bbox[2] - p_bbox[0]
-    draw_badge.text(((900 - pw) / 2, 40), pct_text, font=pct_font, fill=pct_color, stroke_width=12, stroke_fill="black")
+    draw_badge.text(((900 - pw) / 2, 40), pct_text, font=pct_font, fill=pct_color, stroke_width=14, stroke_fill="black")
 
+    # ציור המחיר
     pr_bbox = draw_badge.textbbox((0, 0), price_text, font=price_font)
     prw = pr_bbox[2] - pr_bbox[0]
-    draw_badge.text(((900 - prw) / 2, 260), price_text, font=price_font, fill="white", stroke_width=8, stroke_fill="black")
+    draw_badge.text(((900 - prw) / 2, 250), price_text, font=price_font, fill="white", stroke_width=10, stroke_fill="black")
 
-    canvas.paste(badge_img, (90, 800), badge_img)
+    # הדבקת הבאדג' במרכז הוידאו
+    canvas.paste(badge_img, (90, 750), badge_img)
 
     output_path = "overlay_graphics.png"
     canvas.save(output_path)
