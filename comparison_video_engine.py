@@ -6,6 +6,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip
 from scipy.interpolate import PchipInterpolator
 import os
+import tempfile
 import time
 from requests import Session
 
@@ -15,68 +16,72 @@ GRID_COLOR = "#2A3447"
 COLOR_1 = "#00E676"  # ירוק ניאון למניה א'
 COLOR_2 = "#2979FF"  # כחול ניאון למניה ב'
 try:
-    yf.set_tz_cache_location(None)
+  cache_dir = os.path.join(tempfile.gettempdir(), "yf_cache")
+  os.makedirs(cache_dir, exist_ok=True)
+  yf.set_tz_cache_location(cache_dir)
 except Exception:
-    pass
+  pass
 
 def get_comparison_data(ticker1, ticker2, initial_investment=100):
-    print(f"📥 Fetching historical data for {ticker1} and {ticker2}...")
+  print(f"📥 Fetching historical data for {ticker1} and {ticker2}...")
 
-    # 🟢 2. יצירת Session עם זהות של דפדפן רגיל לעקיפת ה-Rate Limit
-    session = Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
+  # יצירת Session עם User-Agent של דפדפן
+  session = Session()
+  session.headers.update({
+      'User-Agent': (
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      )
+  })
 
-    df = None
-    for attempt in range(4):
-        try:
-            # 🟢 3. threads=False מונע כתיבות מקבילות שמקפיצות database is locked
-            df = yf.download(
-                tickers=f"{ticker1} {ticker2}",
-                period="max",
-                interval="1wk",
-                progress=False,
-                auto_adjust=True,
-                session=session,
-                threads=False  # קריטי!
-            )
-
-            if df is not None and not df.empty:
-                break
-        except Exception as e:
-            print(f"⚠️ Attempt {attempt + 1} failed: {e}")
-            time.sleep(3)  # השהייה בין ניסיונות
-
-    if df is None or df.empty:
-        print("❌ Failed to fetch data from Yahoo Finance.")
-        return None, None, None
-
-    # חילוץ נתונים מתוך הטבלה
+  df = None
+  for attempt in range(4):
     try:
-        close_df = df['Close'] if isinstance(df.columns, pd.MultiIndex) else df
-        h1 = close_df[ticker1].dropna()
-        h2 = close_df[ticker2].dropna()
-    except KeyError as e:
-        print(f"❌ Could not extract ticker data: {e}")
-        return None, None, None
+      df = yf.download(
+          tickers=f"{ticker1} {ticker2}",
+          period="max",
+          interval="1wk",
+          progress=False,
+          auto_adjust=True,
+          session=session,
+          threads=False,  # מונע כתיבות מקבילות שמקפיצות database is locked
+      )
 
-    if h1.empty or h2.empty:
-        return None, None, None
+      if df is not None and not df.empty:
+        break
+    except Exception as e:
+      print(f"⚠️ Attempt {attempt+1} failed: {e}")
+      time.sleep(3)
 
-    # סנכרון תאריך התחלה משותף ונרמול ל-100$
-    start_date = max(h1.index[0], h2.index[0])
-    h1_aligned = h1[h1.index >= start_date]
-    h2_aligned = h2[h2.index >= start_date]
+  if df is None or df.empty:
+    print("❌ Failed to fetch data from Yahoo Finance.")
+    return None, None, None
 
-    common_index = h1_aligned.index.intersection(h2_aligned.index)
-    h1_final = h1_aligned.loc[common_index]
-    h2_final = h2_aligned.loc[common_index]
+  # חילוץ נתונים מתוך הטבלה
+  try:
+    close_df = df['Close'] if isinstance(df.columns, pd.MultiIndex) else df
+    h1 = close_df[ticker1].dropna()
+    h2 = close_df[ticker2].dropna()
+  except KeyError as e:
+    print(f"❌ Could not extract ticker data: {e}")
+    return None, None, None
 
-    v1 = (h1_final / h1_final.iloc[0]) * initial_investment
-    v2 = (h2_final / h2_final.iloc[0]) * initial_investment
+  if h1.empty or h2.empty:
+    return None, None, None
 
-    return v1, v2, start_date.year
+  # סנכרון תאריך התחלה משותף ונרמול ל-100$
+  start_date = max(h1.index[0], h2.index[0])
+  h1_aligned = h1[h1.index >= start_date]
+  h2_aligned = h2[h2.index >= start_date]
+
+  common_index = h1_aligned.index.intersection(h2_aligned.index)
+  h1_final = h1_aligned.loc[common_index]
+  h2_final = h2_aligned.loc[common_index]
+
+  v1 = (h1_final / h1_final.iloc[0]) * initial_investment
+  v2 = (h2_final / h2_final.iloc[0]) * initial_investment
+
+  return v1, v2, start_date.year
 
 
 def make_animated_comparison_chart(v1, v2, ticker1, ticker2, start_year, investment, duration, size=(1080, 1920)):
