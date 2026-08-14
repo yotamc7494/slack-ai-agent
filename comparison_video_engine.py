@@ -167,7 +167,11 @@ def create_comparison_fomo_video(ticker1, ticker2, music_path, output_filename="
         final_video = final_video.set_audio(audio)
 
     print(f"🎬 Rendering final video: {output_filename}...")
-    final_video.write_videofile(output_filename, fps=24, codec='libx264', audio_codec='aac')
+    final_video.write_videofile(output_filename, fps=24, codec='libx264', audio_codec="aac",
+            logger=None,
+            threads=1,
+            preset="ultrafast"
+        )
     print("✅ Done!")
     return output_filename
 
