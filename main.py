@@ -621,12 +621,15 @@ def view_final_video():
         caption="📸 תמונה מקדימה מתוך final_video (לפני הרינדור)",
         use_container_width=True
     )
-    final_video.write_videofile(
-        output_filename,
-        fps=24,
-        codec="libx264",
-        audio_codec="aac"
-    )
+    try:
+        final_video.write_videofile(
+            output_filename,
+            fps=24,
+            codec="libx264",
+            audio_codec="aac"
+        )
+    except Exception as e:
+        print(e)
 
     # --- ניקוי כל קבצי התמונות והאודיו הזמניים ---
     for tmp in temp_cap_files + [overlay_img_path, audio_file]:
