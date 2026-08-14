@@ -569,7 +569,10 @@ def render_final_video():
         output_filename,
         fps=24,
         codec="libx264",
-        audio_codec="aac"
+        audio_codec="aac",
+        logger=None,  # ⬅️ קריטי: מכבה את מד ההתקדמות שחוסם את Streamlit
+        threads=1,  # ⬅️ קריטי: מונע התנגשות תהליכונים (Threads) בתוך Streamlit
+        preset="ultrafast"
     )
 
     # --- ניקוי כל קבצי התמונות והאודיו הזמניים ---
@@ -655,7 +658,10 @@ def view_final_video():
             output_filename,
             fps=24,
             codec="libx264",
-            audio_codec="aac"
+            audio_codec="aac",
+            logger=None,  # ⬅️ קריטי: מכבה את מד ההתקדמות שחוסם את Streamlit
+            threads=1,  # ⬅️ קריטי: מונע התנגשות תהליכונים (Threads) בתוך Streamlit
+            preset="ultrafast"
         )
     except Exception as e:
         print(e)
