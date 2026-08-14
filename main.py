@@ -167,7 +167,7 @@ def get_top_moving_stock(test=False):
         if not test:
             mark_stock_as_used(top_data['symbol'])
         print(f"🎯 Selected: {top_data['symbol']} with {top_data['change_pct']}% change")
-    return top_data,
+    return top_data, ticker
 
 
 def get_top_moving_stock_fallback():
