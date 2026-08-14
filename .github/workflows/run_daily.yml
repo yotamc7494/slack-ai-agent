@@ -1,45 +1,22 @@
-name: Run Stock Video Generator 3x Daily
+name: Trigger Streamlit Webhook 3x Daily
 
 on:
-  # תזמון אוטומטי בימי שני-שישי (ימי מסחר)
   schedule:
-    # 1. 15:00 שעון ישראל (12:00 UTC) - Pre-market
+    # 1. 15:00 שעון ישראל (12:00 UTC)
     - cron: '0 12 * * 1-5'
     
-    # 2. 19:30 שעון ישראל (16:30 UTC) - Mid-day
+    # 2. 19:30 שעון ישראל (16:30 UTC)
     - cron: '30 16 * * 1-5'
     
-    # 3. 23:30 שעון ישראל (20:30 UTC) - Market Close
+    # 3. 23:30 שעון ישראל (20:30 UTC)
     - cron: '30 20 * * 1-5'
 
-  # מאפשר הרצה ידנית בלחיצת כפתור מתוך GitHub כשבא לך
-  workflow_dispatch:
+  workflow_dispatch: # הרצה ידנית בלחיצת כפתור
 
 jobs:
-  generate-and-upload:
+  ping-streamlit:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install System Dependencies (FFmpeg)
+      - name: Send Webhook to Streamlit
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Execute Main Script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          YOUTUBE_TOKEN_PICKLE_BASE64: ${{ secrets.YOUTUBE_TOKEN_PICKLE_BASE64 }}
-        run: python main.py
+          curl -s "https://YOUR-APP-NAME.streamlit.app/?token=${{ secrets.WEBHOOK_TOKEN }}"
