@@ -20,7 +20,7 @@ from google import genai
 from google.genai import types
 
 from moviepy.editor import (
-    AudioFileClip, ImageClip, VideoClip, CompositeVideoClip, VideoFileClip, vfx
+    AudioFileClip, ImageClip, VideoClip, CompositeVideoClip, VideoFileClip
 )
 from uploader import upload_video
 import imageio_ffmpeg
@@ -655,7 +655,7 @@ def view_final_video():
     bg_video = VideoFileClip("assets/trading_floor_loop.mp4")
     bg_video = bg_video.loop(duration=duration)
     bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)
-    bg_video = bg_video.fx(vfx.colorx, 0.22)
+    bg_video = bg_video.fl_image(lambda frame: (frame * 0.22).astype('uint8'))
 
     print("🎬 Compositing Video with Captions...")
     all_layers = [bg_video,chart_clip, overlay_clip] + caption_clips
