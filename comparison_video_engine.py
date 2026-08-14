@@ -72,7 +72,7 @@ def fetch_yahoo_chart_direct(ticker, period='max', interval='1wk'):
 def get_comparison_data(ticker1, ticker2, initial_investment=100):
   print(
       f'📥 Fetching historical data for {ticker1} and {ticker2} directly'
-      ' via Yahoo API...'
+      ' via Yahoo API...',flush=True
   )
 
   # משיכה ישירה של שתי המניות
@@ -184,76 +184,76 @@ def make_animated_comparison_chart(v1, v2, ticker1, ticker2, start_year, investm
 def create_comparison_fomo_video(
     ticker1, ticker2, music_path, output_filename="fomo_comparison.mp4"
 ):
-  duration = 30
-  investment = 100
+      duration = 30
+      investment = 100
 
-  v1, v2, start_year = get_comparison_data(ticker1, ticker2, investment)
-  if v1 is None:
-    print("❌ Could not generate video due to data fetch error.")
-    return
-  print(f"🎬 Generating Video For {ticker1} vs {ticker2}")
+      v1, v2, start_year = get_comparison_data(ticker1, ticker2, investment)
+      if v1 is None:
+        print("❌ Could not generate video due to data fetch error.")
+        return
+      print(f"🎬 Generating Video For {ticker1} vs {ticker2}")
 
-  # 1. יצירת קליפ הגרף
-  chart_clip = make_animated_comparison_chart(
-      v1, v2, ticker1, ticker2, start_year, investment, duration
-  )
+      # 1. יצירת קליפ הגרף
+      chart_clip = make_animated_comparison_chart(
+          v1, v2, ticker1, ticker2, start_year, investment, duration
+      )
 
-  # 2. רקע מוחשך (ללא אודיו מקורי)
-  background = (
-      VideoFileClip("trading_floor_loop.mp4")
-      .loop(duration=duration)
-      .without_audio()
-  )
-  background = background.resize(height=1920).crop(
-      x_center=background.w / 2, width=1080
-  )
-  background = background.fl_image(lambda frame: (frame * 0.1).astype("uint8"))
+      # 2. רקע מוחשך (ללא אודיו מקורי)
+      background = (
+          VideoFileClip("trading_floor_loop.mp4")
+          .loop(duration=duration)
+          .without_audio()
+      )
+      background = background.resize(height=1920).crop(
+          x_center=background.w / 2, width=1080
+      )
+      background = background.fl_image(lambda frame: (frame * 0.1).astype("uint8"))
 
-  # 3. הרכבת הווידאו והגדרת duration קשיח
-  final_video = CompositeVideoClip(
-      [background, chart_clip.set_position("center")], size=(1080, 1920)
-  ).set_duration(duration)
+      # 3. הרכבת הווידאו והגדרת duration קשיח
+      final_video = CompositeVideoClip(
+          [background, chart_clip.set_position("center")], size=(1080, 1920)
+      ).set_duration(duration)
 
-  # 4. ניהול אודיו חסין שגיאות
-  audio_tracks = []
+      # 4. ניהול אודיו חסין שגיאות
+      audio_tracks = []
 
-  # א. טיפול באודיו הקיים בגרף/דיבוב (מונע קריאה מעבר לסוף הקובץ)
-  if final_video.audio is not None:
-    existing_audio = final_video.audio
-    if existing_audio.duration:
-      audio_limit = min(existing_audio.duration, duration)
-      existing_audio = existing_audio.subclip(0, audio_limit)
-    audio_tracks.append(existing_audio)
+      # א. טיפול באודיו הקיים בגרף/דיבוב (מונע קריאה מעבר לסוף הקובץ)
+      if final_video.audio is not None:
+        existing_audio = final_video.audio
+        if existing_audio.duration:
+          audio_limit = min(existing_audio.duration, duration)
+          existing_audio = existing_audio.subclip(0, audio_limit)
+        audio_tracks.append(existing_audio)
 
-  # ב. טיפול במוזיקת הרקע
-  if music_path and os.path.exists(music_path):
-    bg_music = AudioFileClip(music_path)
+      # ב. טיפול במוזיקת הרקע
+      if music_path and os.path.exists(music_path):
+        bg_music = AudioFileClip(music_path)
 
-    if bg_music.duration < duration:
-      bg_music = bg_music.fx(audio_loop, duration=duration)
+        if bg_music.duration < duration:
+          bg_music = bg_music.fx(audio_loop, duration=duration)
 
-    # חיתוך קשיח ל-30 שניות בדיוק (קובע end=30 ומונע חריגה)
-    bg_music = bg_music.subclip(0, duration)
-    bg_music = bg_music.fx(volumex, 0.15).fx(audio_fadeout, 2)
-    audio_tracks.append(bg_music)
+        # חיתוך קשיח ל-30 שניות בדיוק (קובע end=30 ומונע חריגה)
+        bg_music = bg_music.subclip(0, duration)
+        bg_music = bg_music.fx(volumex, 0.15).fx(audio_fadeout, 2)
+        audio_tracks.append(bg_music)
 
-  # ג. איחוד הערוצים והצמדה לווידאו
-  if audio_tracks:
-    final_audio = CompositeAudioClip(audio_tracks).set_duration(duration)
-    final_video = final_video.set_audio(final_audio)
+      # ג. איחוד הערוצים והצמדה לווידאו
+      if audio_tracks:
+        final_audio = CompositeAudioClip(audio_tracks).set_duration(duration)
+        final_video = final_video.set_audio(final_audio)
 
-  print(f"🎬 Rendering final video: {output_filename}...")
-  final_video.write_videofile(
-      output_filename,
-      fps=24,
-      codec="libx264",
-      audio_codec="aac",
-      logger=None,
-      threads=1,
-      preset="ultrafast",
-  )
-  print("✅ Done!")
-  return output_filename
+      print(f"🎬 Rendering final video: {output_filename}...")
+      final_video.write_videofile(
+          output_filename,
+          fps=24,
+          codec="libx264",
+          audio_codec="aac",
+          logger=None,
+          threads=1,
+          preset="ultrafast",
+      )
+      print("✅ Done!")
+      return output_filename
 
 
 def run_generator(test_mode=False):
