@@ -406,7 +406,7 @@ def run_generator(test_mode=False):
         "AMD", "PLTR", "SMCI", "ARM", "COIN", "MSTR", "INTC",  # תנודתיות וקריפטו/AI
         "NFLX", "DIS", "BABA", "SPOT", "UBER", "ABNB",  # צרכנות וטכנולוגיה
         "BRK-B", "JPM", "V", "WMT", "LLY", "COST", "HD",  # חברות ענק יציבות
-        "IVV", "QQQ", "GRNY"  # תעודות סל / מדדים
+        "VOO", "QQQ", "GRNY"  # תעודות סל / מדדים
     ]
 
     # בחירה אקראית של 2 טיקרים שונים
@@ -416,7 +416,10 @@ def run_generator(test_mode=False):
     output_filename = f"{ticker1}_vs_{ticker2}.mp4"
     investment = random.choice([1, 10, 100, 200, 500, 1000])
     upload_data = create_comparison_fomo_video(ticker1, ticker2, MUSIC_PATH, investment, output_filename)
-    if not test_mode:
+
+    if test_mode:
+        return output_filename
+    else:
         upload_video(output_filename, upload_data["youtube_title"], upload_data["description"], upload_data['tags'])
 
 
