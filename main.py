@@ -39,7 +39,17 @@ load_dotenv()
 if not hasattr(PIL.Image, 'ANTIALIAS'):
     PIL.Image.ANTIALIAS = PIL.Image.Resampling.LANCZOS
 
-TICKERS_TO_CHECK = ["NVDA", "TSLA", "AAPL", "AMD", "PLTR", "AMZN", "MSFT", "GOOGL"]
+TICKERS_TO_CHECK = [
+    # 🚀 AI, שבבים וטכנולוגיה ענקית (Mega-Tech & AI)
+    "NVDA", "TSLA", "AAPL", "AMD", "PLTR", "AMZN", "MSFT", "GOOGL",
+    "META", "NFLX", "AVGO", "TSM", "SMCI", "INTC", "ORCL", "CRM", "QCOM", "MU",
+
+    # 🪙 קריפטו, פינטק ומניות תנודתיות (Crypto & FinTech)
+    "MSTR", "COIN", "HOOD", "SOFI", "PYPL", "SQ",
+
+    # ⚡ צמיחה, רכבים חשמליים וטרנדים (Growth & Retail Favorites)
+    "RIVN", "NIO", "BABA", "UBER", "RBLX", "SHOP", "LLY"
+]
 USED_STOCKS_FILE = "used_stocks.json"
 
 # -----------------------------------------------------------------------------
@@ -194,6 +204,7 @@ def generate_script_and_titles_with_ai(stock_data):
     Requirements:
     1. Strong, scroll-stopping hook in the first second.
     2. Explain the price movement in exciting, clear English.
+    3. Avoid Using Filler Words and Gaps, jst alot of engaging data
     3. Call to Action question at the end to generate comments.
     4. Return ONLY valid JSON with 5 specific fields:
     {{
@@ -353,64 +364,87 @@ def create_caption_clip(text, duration, canvas_size=(1000, 220)):
 # -----------------------------------------------------------------------------
 # 6. הנפשת הגרף
 # -----------------------------------------------------------------------------
-def make_animated_chart_video(stock_data, duration, size=(1080, 1920)):
+def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1080, 1920)):
     prices = stock_data['history'].values
     n_points = len(prices)
-
-    # התחלה מ-5 נקודות גלויות (או פחות אם אין מספיק)
     start_points = min(5, n_points)
 
     is_positive = stock_data['change_pct'] >= 0
     line_color = "#00E676" if is_positive else "#FF1744"
     bg_color = "#0B0E14"
+    grid_color = "#1E2638"
 
+    # רזולוציית בסיס של 1080x1920 פיקסלים
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
     canvas = FigureCanvasAgg(fig)
 
-    # מרווח בטיחות לציר ה-Y כדי שהטקסט והנקודה לא ייחתכו למעלה/למטה
     y_min, y_max = min(prices), max(prices)
-    y_padding = (y_max - y_min) * 0.15 if y_max != y_min else 1.0
+    y_padding = (y_max - y_min) * 0.28 if y_max != y_min else 1.0
 
     def make_frame(t):
         ax.clear()
         fig.patch.set_facecolor(bg_color)
         ax.set_facecolor(bg_color)
 
-        # חישוב אינדקס הנקודה הנוכחית (החל מ-start_points)
+        # 1. רשת בורסה מודגשת ברקע
+        ax.grid(True, color=grid_color, linestyle='--', linewidth=2.0, alpha=0.5)
+        ax.set_axisbelow(True)
+
         idx = int(start_points + (t / duration) * (n_points - start_points))
         idx = min(max(start_points, idx), n_points)
 
         sub_prices = prices[:idx]
         curr_price = sub_prices[-1]
 
-        # 1. ציור הקו והשטח המוצלל
-        ax.plot(sub_prices, color=line_color, linewidth=7)
-        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.15)
+        # 2. קו גרף עבה ובולט (linewidth=12)
+        ax.plot(sub_prices, color=line_color, linewidth=12)
+        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.2)
 
-        # 2. ציור עיגול/נקודה בולטת בראש הקו המתקדם
+        # 3. נקודה גדולה בקצה הקו (markersize=22)
         curr_x = len(sub_prices) - 1
-        ax.plot(curr_x, curr_price, marker='o', markersize=14, color=line_color)
+        ax.plot(curr_x, curr_price, marker='o', markersize=22, color=line_color)
 
-        # 3. תווית מחיר צפה ליד הנקודה
+        # 4. תווית מחיר ענקית וקריאה שצפה מעל הנקודה (fontsize=48)
         ax.text(
             curr_x,
-            curr_price + (y_padding * 0.25),
+            curr_price + (y_padding * 0.22),
             f" ${curr_price:.2f} ",
             color="white",
-            fontsize=24,
+            fontsize=48,  # הוגדל מ-24 ל-48!
             fontweight="bold",
             ha="center",
             va="bottom",
-            bbox=dict(boxstyle="round,pad=0.4", facecolor=line_color, edgecolor="none", alpha=0.9)
+            bbox=dict(boxstyle="round,pad=0.5", facecolor=line_color, edgecolor="none", alpha=0.95)
         )
 
-        # קיבוע הצירים כדי להבטיח אנומציה חלקה ללא קפיצות
+        # 5. באנרים וכרטיסיות נתונים מוגדלים למכשירי מובייל
+        if market_metrics:
+            # באנר עליון (S&P 500 ו-BTC)
+            ticker_text = f"S&P 500: {market_metrics.get('sp500')}   |   BTC: {market_metrics.get('btc')}"
+            ax.text(
+                0.5, 0.94, ticker_text,
+                transform=ax.transAxes,
+                color="#FFFFFF", fontsize=36, fontweight="bold", ha="center", va="top",
+                bbox=dict(boxstyle="round,pad=0.7", facecolor="#141A26", edgecolor="#2A3447", alpha=0.9, linewidth=2)
+            )
+
+            # כרטיסיית שווי שוק (Market Cap)
+            mcap_text = f"MARKET CAP\n{market_metrics.get('mcap')}"
+            ax.text(
+                0.06, 0.85, mcap_text,
+                transform=ax.transAxes,
+                color="white", fontsize=42, fontweight="bold", ha="left", va="top",
+                bbox=dict(boxstyle="round,pad=0.6", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=2.5)
+            )
+
         ax.set_xlim(-1, n_points + 1)
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
 
-        ax.axis("off")
         canvas.draw()
-
         rgba = np.asarray(canvas.buffer_rgba())
         return rgba[:, :, :3]
 
