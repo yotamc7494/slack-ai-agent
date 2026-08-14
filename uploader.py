@@ -56,7 +56,7 @@ def upload_video(file_path, title, description, tags, category_id="24", privacy_
     else:
         parsed_tags = []
 
-    print(f"🚀 Starting upload: {title}")
+    print(f"🚀 Starting upload: {title}", flush=True)
 
     body = {
         'snippet': {
@@ -87,13 +87,13 @@ def upload_video(file_path, title, description, tags, category_id="24", privacy_
             if status:
                 print(f"⏳ Uploaded {int(status.progress() * 100)}%")
 
-        print(f"✅ Success! Video ID: {response['id']}")
-        print(f"🔗 URL: https://www.youtube.com/watch?v={response['id']}")
+        print(f"✅ Success! Video ID: {response['id']}", flush=True)
+        print(f"🔗 URL: https://www.youtube.com/watch?v={response['id']}", flush=True)
 
         # מחיקת הקובץ המקומי בסיום
         if auto_delete and os.path.exists(file_path):
             os.remove(file_path)
-            print(f"🗑️ Cleaned up and deleted local file: {file_path}")
+            print(f"🗑️ Cleaned up and deleted local file: {file_path}", flush=True)
 
         return response['id']
 

@@ -35,7 +35,7 @@ if os.name == 'nt':  # Windows בלבד
     ffmpeg_dst = os.path.join(os.getcwd(), "ffmpeg.exe")
     if not os.path.exists(ffmpeg_dst):
         shutil.copy(ffmpeg_src, ffmpeg_dst)
-        print("✅ Created local ffmpeg.exe for Whisper!")
+        print("✅ Created local ffmpeg.exe for Whisper!", flush=True)
 
 load_dotenv()
 if not hasattr(PIL.Image, 'ANTIALIAS'):
@@ -124,7 +124,7 @@ def extract_news_context(news_data, ticker_symbol="", max_articles=3):
 
 def get_top_moving_stock(test=False):
     used_today = get_used_stocks_today()
-    print(f"📋 Stocks already used today ({date.today()}): {list(used_today) if used_today else 'None'}")
+    print(f"📋 Stocks already used today ({date.today()}): {list(used_today) if used_today else 'None'}", flush=True)
 
     best_ticker_obj = None
     max_change = -1
@@ -185,7 +185,7 @@ def get_top_moving_stock(test=False):
     if top_data:
         if not test:
             mark_stock_as_used(top_data['symbol'])
-        print(f"🎯 Selected: {top_data['symbol']} with {top_data['change_pct']}% change")
+        print(f"🎯 Selected: {top_data['symbol']} with {top_data['change_pct']}% change", flush=True)
 
     return top_data, best_ticker_obj
 
@@ -296,7 +296,7 @@ async def create_tts_async(text, audio_file="voiceover.mp3"):
     await communicate.save(audio_file)
 
 def get_exact_captions_with_whisper(audio_file, words_per_caption=2):
-    print("🎧 Aligning captions directly from audio stream with Whisper...")
+    print("🎧 Aligning captions directly from audio stream with Whisper...", flush=True)
 
     model = whisper.load_model("tiny.en")
     result = model.transcribe(audio_file, word_timestamps=True)
@@ -576,28 +576,28 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
 def render_final_video():
     stock_data, ticker = get_top_moving_stock()
     market_metrics = get_market_metrics(ticker)
-    print("🤖 Generating script with gemini-flash-lite-latest...")
+    print("🤖 Generating script with gemini-flash-lite-latest...", flush=True)
     script_data = generate_script_and_titles_with_ai(stock_data)
 
     print("\n" + "=" * 60)
-    print(f"📌 YOUTUBE TITLE: {script_data.get('youtube_title')}")
-    print(f"🎬 OVERLAY HEADLINE: {script_data.get('overlay_headline')}")
+    print(f"📌 YOUTUBE TITLE: {script_data.get('youtube_title')}", flush=True)
+    print(f"🎬 OVERLAY HEADLINE: {script_data.get('overlay_headline')}", flush=True)
     print("=" * 60 + "\n")
 
-    print("🎙️ Generating Voiceover...")
+    print("🎙️ Generating Voiceover...", flush=True)
     audio_file = "voiceover.mp3"
     asyncio.run(create_tts_async(script_data['voiceover_text'], audio_file))
 
     audio_clip = AudioFileClip(audio_file)
     duration = audio_clip.duration
 
-    print("🎯 Syncing captions with Whisper...")
+    print("🎯 Syncing captions with Whisper...", flush=True)
     captions = get_exact_captions_with_whisper(audio_file, words_per_caption=2)
 
     caption_clips = []
     temp_cap_files = []
 
-    print(f"💬 Creating {len(captions)} frame-accurate caption overlays...")
+    print(f"💬 Creating {len(captions)} frame-accurate caption overlays...", flush=True)
     for cap in captions:
         c_dur = cap['end'] - cap['start']
         if c_dur <= 0.05:
@@ -607,18 +607,18 @@ def render_final_video():
         caption_clips.append(c_clip)
         temp_cap_files.append(tmp_img)
 
-    print("🎨 Creating High-Energy Graphics Overlay...")
+    print("🎨 Creating High-Energy Graphics Overlay...", flush=True)
     overlay_img_path = create_overlay_graphics(script_data, stock_data)
     overlay_clip = ImageClip(overlay_img_path).set_duration(duration)
 
-    print("📊 Rendering Animated Stock Chart...")
+    print("📊 Rendering Animated Stock Chart...", flush=True)
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
     bg_video = VideoFileClip("trading_floor_loop.mp4")
     bg_video = bg_video.loop(duration=duration)
     bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)
     bg_video = bg_video.fl_image(lambda frame: (frame * 0.22).astype('uint8'))
 
-    print("🎬 Compositing Video with Captions...")
+    print("🎬 Compositing Video with Captions...", flush=True)
     all_layers = [bg_video, chart_clip, overlay_clip] + caption_clips
     final_video = CompositeVideoClip(all_layers).set_audio(audio_clip).set_duration(duration)
 
@@ -643,7 +643,7 @@ def render_final_video():
             except Exception:
                 pass
 
-    print(f"\n✅ SUCCESS! Video saved as: {output_filename}")
+    print(f"\n✅ SUCCESS! Video saved as: {output_filename}", flush=True)
     tags = script_data.get('tags')
     if isinstance(tags, str):
         parsed_tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -657,7 +657,7 @@ def render_final_video():
         description=script_data.get('description'),
         tags=parsed_tags
     )
-    print(f"🚀 Uploaded To YouTube: {script_data.get('youtube_title')}")
+    print(f"🚀 Uploaded To YouTube: {script_data.get('youtube_title')}", flush=True)
 
 
 def view_final_video():

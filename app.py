@@ -16,15 +16,19 @@ col1, col2 = st.columns(2)
 
 if "WEBHOOK_TOKEN" in st.query_params:
   if st.query_params["WEBHOOK_TOKEN"] == st.secrets.get("WEBHOOK_TOKEN"):
-    st.info("⚡ הופעל מרחוק דרך Webhook!")
-    sys.stdout.reconfigure(line_buffering=True)
-    print("⚡ Webhook triggered from GitHub Actions!", flush=True)
-    # הרצת היצירה
-    filename = render_final_video()
-    st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-    print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
-    # עצירת המשך רינדור הממשק
-    st.stop()
+    video_type = st.query_params["video_type"]
+    print(f"⚡ Webhook triggered from GitHub Actions! - {video_type}", flush=True)
+    if video_type == "update_video":
+        sys.stdout.reconfigure(line_buffering=True)
+        filename = render_final_video()
+        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
+
+    elif video_type == "vs_video":
+        sys.stdout.reconfigure(line_buffering=True)
+        filename = run_generator()
+        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
   else:
       st.info("Wrong Token!")
 

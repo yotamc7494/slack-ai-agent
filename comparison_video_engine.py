@@ -223,7 +223,7 @@ def make_animated_comparison_chart(
     ax.text(
         sub_x[-1],
         v1_curr + (current_y_max * 0.03),
-        f"{ticker1}\n${v1_curr:,.0f}",
+        f"{ticker1}\n${v1_curr:,.1f}",
         color=color1,
         fontsize=24,
         fontweight="bold",
@@ -240,7 +240,7 @@ def make_animated_comparison_chart(
     ax.text(
         sub_x[-1],
         v2_curr + (current_y_max * 0.03),
-        f"{ticker2}\n${v2_curr:,.0f}",
+        f"{ticker2}\n${v2_curr:,.1f}",
         color=color2,
         fontsize=24,
         fontweight="bold",
