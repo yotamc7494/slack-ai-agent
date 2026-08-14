@@ -3,13 +3,24 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from moviepy.editor import VideoClip, AudioFileClip, CompositeVideoClip, CompositeAudioClip,vfx, concatenate_videoclips
+from moviepy.editor import VideoClip
 from scipy.interpolate import PchipInterpolator
-import os
 import requests
-import random
 import tempfile
 import time
+import os
+from uploader import upload_video
+import random
+import moviepy.audio.fx.all as afx
+from moviepy.editor import (
+    AudioFileClip,
+    concatenate_videoclips
+)
+import json
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
+load_dotenv()
 
 # --- הגדרות עיצוב ---
 BG_COLOR = "#131722"
@@ -111,6 +122,7 @@ def make_animated_comparison_chart(
     duration,
     color1,
     color2,
+    header_text,
     size=(1080, 1920),
 ):
   n_original = len(v1)
@@ -128,10 +140,6 @@ def make_animated_comparison_chart(
   canvas = FigureCanvasAgg(fig)
 
   fig.patch.set_facecolor(BG_COLOR)
-  header_text = (
-      f"IF YOU INVESTED ${investment}\nIN {ticker1} vs {ticker2} IN"
-      f" {start_year}..."
-  )
   fig.text(
       0.5,
       0.90,
@@ -259,22 +267,12 @@ def make_animated_comparison_chart(
   return chart_clip
 
 
-import os
-import random
-import moviepy.audio.fx.all as afx
-from moviepy.editor import (
-    AudioFileClip,
-    CompositeAudioClip,
-    concatenate_videoclips
-)
-
-
 def create_comparison_fomo_video(
-        ticker1, ticker2, music_path, output_filename="fomo_comparison.mp4"
+        ticker1, ticker2, music_path, investment,output_filename="fomo_comparison.mp4"
 ):
     duration = 60
     fps = 15
-    investment = random.choice([100, 200, 500, 1000])
+
 
     v1, v2, start_year = get_comparison_data(ticker1, ticker2, investment)
     if v1 is None:
@@ -288,8 +286,9 @@ def create_comparison_fomo_video(
     c1, c2 = random.sample(palette, 2)
 
     # 🟢 2. יצירת הגרף (הוא עצמו משמש כוידאו, אין צורך ב-Trading floor ברקע)
+    ai_data = generate_fomo_metadata_and_header_with_ai(ticker1, ticker2, investment, start_year)
     chart_clip = make_animated_comparison_chart(
-        v1, v2, ticker1, ticker2, start_year, investment, duration, c1, c2
+        v1, v2, ticker1, ticker2, start_year, investment, duration, c1, c2, ai_data["video_header"]
     )
 
     # 🟢 3. הקפאת הפריים האחרון לשנייה נוספת
@@ -340,6 +339,60 @@ def create_comparison_fomo_video(
     final_video.close()
 
     print("✅ Done!", flush=True)
+    return ai_data
+
+
+def generate_fomo_metadata_and_header_with_ai(
+    ticker1, ticker2, investment, start_year
+):
+  # תמיכה בכתיבה גם מקובץ env וגם מ-Streamlit Secrets
+  api_key = os.environ.get("GEMINI_API_KEY")
+  if not api_key:
+    try:
+      import streamlit as st
+
+      api_key = st.secrets.get("GEMINI_API_KEY")
+    except Exception:
+      pass
+
+  if not api_key:
+    raise ValueError("🚨 GEMINI_API_KEY is missing!")
+
+  client = genai.Client(api_key=api_key)
+
+  prompt = f"""
+        You are a viral financial content creator for TikTok, YouTube Shorts, and Instagram Reels.
+        Create both the ON-SCREEN HEADER text and the social media metadata for an animated racing-chart video.
+
+        Video Context:
+        - Ticker 1: {ticker1}
+        - Ticker 2: {ticker2}
+        - Scenario: What happens if you invested ${investment} in {ticker1} vs {ticker2} in {start_year}.
+        - Vibe: FOMO (Fear Of Missing Out), high-stakes financial comparison.
+
+        CRITICAL RULES:
+        1. "video_header": SHORT, 3 to 6 words maximum in ALL CAPS for the top overlay inside the video frame. Must be high-energy (e.g. "IF YOU INVESTED $100 IN...", "$100 IN NVDA VS TSLA", "WHICH ONE CREATED MORE MILLIONAIRES?").
+        2. "youtube_title": Clickbait-y title with emojis (e.g., $100 in NVDA vs TSLA! 🤯 Who Won?).
+        3. "description": Short, punchy summary ending with an engaging question to drive comments.
+        4. "tags": 5-7 comma-separated tags without spaces after commas (e.g., {ticker1},{ticker2},Stocks,Investing,Trading,Wealth).
+
+        STRICT OUTPUT FORMAT:
+        Return ONLY a valid JSON object with the following 4 fields:
+        {{
+          "video_header": "SHORT IN-VIDEO HEADER TEXT IN ALL CAPS",
+          "youtube_title": "High-CTR title with emojis",
+          "description": "Short summary ending with a question for comments",
+          "tags": "5-7 tags separated by commas"
+        }}
+        """
+
+  response = client.models.generate_content(
+      model="gemini-flash-lite-latest",
+      contents=prompt,
+      config=types.GenerateContentConfig(response_mime_type="application/json"),
+  )
+
+  return json.loads(response.text)
 
 
 def run_generator(test_mode=False):
@@ -361,5 +414,9 @@ def run_generator(test_mode=False):
 
     # יצירת שם קובץ דינמי
     output_filename = f"{ticker1}_vs_{ticker2}.mp4"
-    create_comparison_fomo_video(ticker1, ticker2, MUSIC_PATH, output_filename)
-    return output_filename
+    investment = random.choice([1, 10, 100, 200, 500, 1000])
+    upload_data = create_comparison_fomo_video(ticker1, ticker2, MUSIC_PATH, investment, output_filename)
+    if not test_mode:
+        upload_video(output_filename, upload_data["youtube_title"], upload_data["description"], upload_data['tags'])
+
+
