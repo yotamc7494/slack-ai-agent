@@ -68,5 +68,13 @@ if run_test_c or run_full_c:
     is_test_mode_c = run_test_c
     st.info(f"מריץ סרטון השוואה (מצב טסט: {is_test_mode_c})...")
     # קריאה לפונקציה המקורית שלך מהקובץ השני
-    run_generator(is_test_mode_c)
+    video_path = run_generator(is_test_mode_c)
     st.success("תהליך יצירת סרטון השוואה הסתיים.")
+    if video_path and os.path.exists(video_path):
+        with open(video_path, "rb") as file:
+            st.download_button(
+                label="📥 הורד את ההשוואה למחשב",
+                data=file,
+                file_name=os.path.basename(video_path),
+                mime="video/mp4"
+            )

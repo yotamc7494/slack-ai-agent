@@ -169,6 +169,7 @@ def create_comparison_fomo_video(ticker1, ticker2, music_path, output_filename="
     print(f"🎬 Rendering final video: {output_filename}...")
     final_video.write_videofile(output_filename, fps=24, codec='libx264', audio_codec='aac')
     print("✅ Done!")
+    return output_filename
 
 
 def run_generator(test_mode=False):
@@ -177,4 +178,4 @@ def run_generator(test_mode=False):
     if not os.path.exists(MUSIC_PATH):
         MUSIC_PATH = ""
 
-    create_comparison_fomo_video("NVDA", "TSLA", MUSIC_PATH, "nvda_vs_tsla.mp4")
+    return create_comparison_fomo_video("NVDA", "TSLA", MUSIC_PATH, "nvda_vs_tsla.mp4")
