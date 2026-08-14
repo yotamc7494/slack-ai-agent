@@ -94,6 +94,8 @@ def get_top_moving_stock(test=False):
             pct_change = abs((curr_price - prev_close) / prev_close) * 100
 
             if pct_change > max_change:
+                news = ticker.news
+                "\n".join([f"- {item['title']}" for item in news[:3]])
                 max_change = pct_change
                 best_ticker = ticker_symbol
                 raw_pct = ((curr_price - prev_close) / prev_close) * 100
@@ -101,7 +103,8 @@ def get_top_moving_stock(test=False):
                     "symbol": ticker_symbol,
                     "current_price": round(curr_price, 2),
                     "change_pct": round(raw_pct, 2),
-                    "history": hist['Close']
+                    "history": hist['Close'],
+                    "news": news
                 }
         except Exception:
             continue
@@ -147,6 +150,7 @@ def generate_script_and_titles_with_ai(stock_data):
     - Symbol: {stock_data['symbol']}
     - Current Price: ${stock_data['current_price']}
     - Today's Change: {stock_data['change_pct']}%
+    - News: {stock_data['news']}
 
     Requirements:
     1. Strong, scroll-stopping hook in the first second.
