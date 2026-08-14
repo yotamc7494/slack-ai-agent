@@ -20,7 +20,7 @@ from google import genai
 from google.genai import types
 
 from moviepy.editor import (
-    AudioFileClip, ImageClip, VideoClip, CompositeVideoClip
+    AudioFileClip, ImageClip, VideoClip, CompositeVideoClip, VideoFileClip
 )
 from uploader import upload_video
 import imageio_ffmpeg
@@ -652,10 +652,16 @@ def view_final_video():
 
     print("📊 Rendering Animated Stock Chart...")
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
+    bg_video = VideoFileClip("assets/trading_floor_loop.mp4")
+    bg_video = bg_video.loop(duration=duration)  # התאמה לאורך הסרטון
+    bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)  # התאמה ל-9:16
+    bg_video = bg_video.colorx(0.22)
 
     print("🎬 Compositing Video with Captions...")
-    all_layers = [chart_clip, overlay_clip] + caption_clips
+    all_layers = [bg_video,chart_clip, overlay_clip] + caption_clips
     final_video = CompositeVideoClip(all_layers).set_audio(audio_clip).set_duration(duration)
+
+
 
     clean_symbol = stock_data['symbol']
     output_filename = f"STOCK_{clean_symbol}_{int(stock_data['change_pct'])}pct.mp4"
