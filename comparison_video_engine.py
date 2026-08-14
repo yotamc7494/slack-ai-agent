@@ -230,6 +230,7 @@ def make_animated_comparison_chart(
     return np.asarray(canvas.buffer_rgba())[:, :, :3]
 
   chart_clip = VideoClip(render_rgba_frame, duration=duration)
+  plt.close(fig)
   return chart_clip
 
 def create_comparison_fomo_video(
