@@ -85,7 +85,7 @@ def upload_video(file_path, title, description, tags, category_id="24", privacy_
         while response is None:
             status, response = request.next_chunk()
             if status:
-                print(f"⏳ Uploaded {int(status.progress() * 100)}%")
+                print(f"⏳ Uploaded {int(status.progress() * 100)}%", flush=True)
 
         print(f"✅ Success! Video ID: {response['id']}", flush=True)
         print(f"🔗 URL: https://www.youtube.com/watch?v={response['id']}", flush=True)
