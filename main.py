@@ -501,10 +501,19 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
                 bbox=dict(boxstyle="round,pad=0.4", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=1.5)
             )
 
+        ax.set_xticks(np.linspace(0, n_points, 6))
+        ax.set_yticks(np.linspace(y_min - y_padding, y_max + y_padding, 8))
+
+        # מעלימים את המספרים והסרגלים, אך שומרים על הרשת!
+        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+
+        # הגדרת הרשת
+        ax.grid(True, color="#1E2638", linestyle='--', linewidth=1.8, alpha=0.6)
+        ax.set_axisbelow(True)  # דוחף את הרשת אל מאחורי הגרף והשכבות
+
         ax.set_xlim(-1, n_points + 1)
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
-        ax.set_xticks([])
-        ax.set_yticks([])
+
         for spine in ax.spines.values():
             spine.set_visible(False)
 
