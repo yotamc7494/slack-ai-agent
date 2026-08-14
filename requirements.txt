@@ -4,6 +4,7 @@ edge-tts
 openai-whisper
 matplotlib
 numpy
+pandas
 pillow
 google-genai
 moviepy
