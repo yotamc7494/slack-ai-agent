@@ -147,7 +147,7 @@ def get_top_moving_stock(test=False):
 
                 news = extract_news_context(ticker.news)
                 max_change = pct_change
-                best_ticker = ticker_symbol
+                best_ticker = ticker
                 raw_pct = ((curr_price - prev_close) / prev_close) * 100
                 top_data = {
                     "symbol": ticker_symbol,
@@ -165,9 +165,9 @@ def get_top_moving_stock(test=False):
 
     if top_data:
         if not test:
-            mark_stock_as_used(best_ticker)
-        print(f"🎯 Selected: {best_ticker} with {top_data['change_pct']}% change")
-    return top_data
+            mark_stock_as_used(top_data['symbol'])
+        print(f"🎯 Selected: {top_data['symbol']} with {top_data['change_pct']}% change")
+    return top_data,
 
 
 def get_top_moving_stock_fallback():
@@ -176,13 +176,11 @@ def get_top_moving_stock_fallback():
     return get_top_moving_stock()
 
 
-def get_market_metrics(ticker_symbol):
+def get_market_metrics(stock):
     """
     שולף שווי שוק של המניה, מחיר S&P 500 ומחיר ביטקוין.
     """
     try:
-        # 1. שווי שוק
-        stock = yf.Ticker(ticker_symbol)
         mcap = stock.info.get('marketCap', 0)
 
         if mcap >= 1e12:
@@ -404,21 +402,24 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
     is_positive = stock_data['change_pct'] >= 0
     line_color = "#00E676" if is_positive else "#FF1744"
     bg_color = "#0B0E14"
-    grid_color = "#1E2638"  # צבע הרשת ברקע
+    grid_color = "#1E2638"
 
+    # קנבס ברזולוציית בסיס של 1080x1920 (10.8x19.2 אינץ' ב-100 DPI)
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
     canvas = FigureCanvasAgg(fig)
 
     y_min, y_max = min(prices), max(prices)
-    y_padding = (y_max - y_min) * 0.22 if y_max != y_min else 1.0
+    y_range = y_max - y_min if y_max != y_min else 1.0
+    # הגדלת המרווח בצירי ה-Y כדי למנוע חפיפה עם הבאנרים העליונים
+    y_padding = y_range * 0.35
 
     def make_frame(t):
         ax.clear()
         fig.patch.set_facecolor(bg_color)
         ax.set_facecolor(bg_color)
 
-        # --- 1. רשת בורסה ברקע (Trading Grid) ---
-        ax.grid(True, color=grid_color, linestyle='--', linewidth=1.5, alpha=0.6)
+        # 1. רשת בורסה ברקע
+        ax.grid(True, color=grid_color, linestyle='--', linewidth=2.0, alpha=0.5)
         ax.set_axisbelow(True)
 
         idx = int(start_points + (t / duration) * (n_points - start_points))
@@ -427,48 +428,47 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
         sub_prices = prices[:idx]
         curr_price = sub_prices[-1]
 
-        # ציור הקו והשטח המוצלל
-        ax.plot(sub_prices, color=line_color, linewidth=7)
-        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.15)
+        # 2. קו גרף עבה ובולט למובייל (linewidth=11)
+        ax.plot(sub_prices, color=line_color, linewidth=11)
+        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.18)
 
-        # נקודה בולטת בסוף הקו
+        # 3. נקודה גדולה בראש הקו (markersize=20)
         curr_x = len(sub_prices) - 1
-        ax.plot(curr_x, curr_price, marker='o', markersize=14, color=line_color)
+        ax.plot(curr_x, curr_price, marker='o', markersize=20, color=line_color)
 
-        # תווית מחיר צפה מעל הנקודה
+        # 4. תווית מחיר בולטת וקריאה (fontsize=42)
         ax.text(
             curr_x,
-            curr_price + (y_padding * 0.22),
+            curr_price + (y_padding * 0.15),
             f" ${curr_price:.2f} ",
             color="white",
-            fontsize=24,
+            fontsize=42,
             fontweight="bold",
             ha="center",
             va="bottom",
-            bbox=dict(boxstyle="round,pad=0.4", facecolor=line_color, edgecolor="none", alpha=0.9)
+            bbox=dict(boxstyle="round,pad=0.5", facecolor=line_color, edgecolor="none", alpha=0.95)
         )
 
-        # --- 2. באנרים וכרטיסיות נתונים (Overlay) ---
+        # 5. באנרים עליונים - מופרדים בגובה ובפונט קריא
         if market_metrics:
-            # פס נע/סטטי עליון: S&P500 ו-Bitcoin
+            # באנר עליון מרכזי: S&P 500 | BTC (מוצב ב-y=0.95)
             ticker_text = f"S&P 500: {market_metrics.get('sp500')}   |   BTC: {market_metrics.get('btc')}"
             ax.text(
                 0.5, 0.95, ticker_text,
                 transform=ax.transAxes,
-                color="#8E9BAE", fontsize=18, fontweight="bold", ha="center", va="top",
-                bbox=dict(boxstyle="square,pad=0.6", facecolor="#141A26", edgecolor="#2A3447", alpha=0.85)
+                color="#FFFFFF", fontsize=32, fontweight="bold", ha="center", va="top",
+                bbox=dict(boxstyle="square,pad=0.7", facecolor="#141A26", edgecolor="#2A3447", alpha=0.9, linewidth=2)
             )
 
-            # כרטיסיית שווי שוק בצד
+            # כרטיסיית Market Cap בצד (מוצבת ב-y=0.86 כדי למנוע התנגשות!)
             mcap_text = f"MARKET CAP\n{market_metrics.get('mcap')}"
             ax.text(
                 0.06, 0.86, mcap_text,
                 transform=ax.transAxes,
-                color="white", fontsize=20, fontweight="bold", ha="left", va="top",
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="#141A26", edgecolor=line_color, alpha=0.85, linewidth=1.5)
+                color="white", fontsize=38, fontweight="bold", ha="left", va="top",
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=2)
             )
 
-        # הגדרת גבולות הצירים והסרת המסגרת החיצונית (משאיר רק את הרשת הפנימית)
         ax.set_xlim(-1, n_points + 1)
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
         ax.set_xticks([])
@@ -488,9 +488,9 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
 # 7. הרכבה ורינדור סופי של הווידאו
 # -----------------------------------------------------------------------------
 def render_final_video():
-    stock_data = get_top_moving_stock()
+    stock_data, ticker = get_top_moving_stock()
     clean_symbol = stock_data['symbol']
-    market_metrics = get_market_metrics(clean_symbol)
+    market_metrics = get_market_metrics(ticker)
     print("🤖 Generating script with gemini-flash-lite-latest...")
     script_data = generate_script_and_titles_with_ai(stock_data)
 
@@ -569,9 +569,8 @@ def render_final_video():
 
 
 def view_final_video():
-    stock_data = get_top_moving_stock()
-    clean_symbol = stock_data['symbol']
-    market_metrics = get_market_metrics(clean_symbol)
+    stock_data, ticker = get_top_moving_stock()
+    market_metrics = get_market_metrics(ticker)
     print("🤖 Generating script with gemini-flash-lite-latest...")
     script_data = generate_script_and_titles_with_ai(stock_data)
 
