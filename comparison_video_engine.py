@@ -3,7 +3,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip
+from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip, CompositeAudioClip
+from moviepy.audio.fx.audio_fadeout import audio_fadeout
+from moviepy.audio.fx.audio_loop import audio_loop
+from moviepy.audio.fx.volumex import volumex
 from scipy.interpolate import PchipInterpolator
 import os
 import requests
@@ -203,8 +206,24 @@ def create_comparison_fomo_video(ticker1, ticker2, music_path, output_filename="
 
     # 4. אודיו
     if os.path.exists(music_path):
-        audio = AudioFileClip(music_path).set_duration(duration).audio_fadeout(2)
-        final_video = final_video.set_audio(audio)
+        bg_music = AudioFileClip(music_path)
+
+        # 1. טיפול נכון באורך: אם קצר - בלופ, אם ארוך - נחתך
+        if bg_music.duration < duration:
+            bg_music = bg_music.fx(audio_loop, duration=duration)
+        else:
+            bg_music = bg_music.subclip(0, duration)
+
+        # 2. הנמכת ווליום (כדי שרושם/דיבוב ישמעו) + Fade Out ב-2 השניות האחרונות
+        bg_music = bg_music.fx(volumex, 0.15).fx(audio_fadeout, 2)
+
+        # 3. שילוב המוזיקה עם הדיבוב הקיים (במקום לדרוס אותו)
+        if final_video.audio is not None:
+            final_audio = CompositeAudioClip([final_video.audio, bg_music])
+        else:
+            final_audio = bg_music
+
+        final_video = final_video.set_audio(final_audio)
 
     print(f"🎬 Rendering final video: {output_filename}...")
     final_video.write_videofile(output_filename, fps=24, codec='libx264', audio_codec="aac",
