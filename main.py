@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import date
 import json
 import asyncio
@@ -176,10 +177,12 @@ def get_top_moving_stock_fallback():
     return get_top_moving_stock()
 
 
-def get_market_metrics(stock):
+def get_market_metrics(stock, depth=5):
     """
     שולף שווי שוק של המניה, מחיר S&P 500 ומחיר ביטקוין.
     """
+    index = 5-depth
+    time.sleep(1+index*1.5)
     try:
         mcap = stock.info.get('marketCap', 0)
 
@@ -202,6 +205,8 @@ def get_market_metrics(stock):
             "btc": f"${btc_price:,.0f}" if btc_price else "N/A"
         }
     except Exception as e:
+        if depth > 0:
+            return get_market_metrics(stock,depth=depth-1)
         print(f"⚠️ Error fetching market metrics: {e}")
         return {"mcap": "N/A", "sp500": "N/A", "btc": "N/A"}
 
