@@ -300,33 +300,25 @@ def create_comparison_fomo_video(
     total_duration = duration + 1.0
 
     # 🟢 1. אודיו מתוקן (מבוסס על total_duration כדי שהמוזיקה תמשיך גם בשנייה הקפואה)
-    audio_tracks = []
-    if final_video.audio is not None:
-        existing_audio = final_video.audio
-        if existing_audio.duration:
-            existing_audio = existing_audio.subclip(
-                0, min(existing_audio.duration, total_duration)
-            )
-        audio_tracks.append(existing_audio)
-
     if music_path and os.path.exists(music_path):
+        print("🎵 Adding background music...", flush=True)
         bg_music = AudioFileClip(music_path)
 
-        # שימוש נכון ב-afx (Audio FX) במקום vfx
+        # לופ במידת הצורך
         if bg_music.duration < total_duration:
             bg_music = bg_music.fx(afx.audio_loop, duration=total_duration)
 
-        # שימוש בפונקציות המובנות של האודיו כדי למנוע השתקה
+        # חיתוך מדויק והנמכת ווליום באמצעות fx
         bg_music = (
             bg_music.subclip(0, total_duration)
-            .volumex(0.15)
-            .audio_fadeout(2)
+            .fx(afx.volumex, 0.15)
+            .fx(afx.audio_fadeout, 2)
         )
-        audio_tracks.append(bg_music)
 
-    if audio_tracks:
-        final_audio = CompositeAudioClip(audio_tracks).set_duration(total_duration)
-        final_video = final_video.set_audio(final_audio)
+        # הדבקה ישירה של השמע לווידאו
+        final_video = final_video.set_audio(bg_music)
+    else:
+        print("⚠️ Music file not found!", flush=True)
 
     print(f"🎬 Rendering final video: {output_filename}...", flush=True)
 
@@ -335,6 +327,7 @@ def create_comparison_fomo_video(
         fps=fps,
         codec="libx264",
         audio_codec="aac",
+        audio_fps=44100,  # ⚡ מבטיח קידוד אודיו סטנדרטי למניעת השתקה בנגנים מסוימים
         temp_audiofile="temp-audio.m4a",
         remove_temp=True,
         threads=1,
