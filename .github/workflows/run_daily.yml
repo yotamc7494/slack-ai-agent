@@ -2,14 +2,14 @@ name: Trigger Streamlit Webhook 3x Daily
 
 on:
   schedule:
-    # 1. 15:00 שעון ישראל (12:00 UTC)
-    - cron: '0 12 * * 1-5'
+    # 1. 15:14 שעון ישראל (12:14 UTC) - עוקף את העומס של 12:00!
+    - cron: '14 12 * * 1-5'
     
-    # 2. 19:30 שעון ישראל (16:30 UTC)
-    - cron: '30 16 * * 1-5'
+    # 2. 19:33 שעון ישראל (16:33 UTC)
+    - cron: '33 16 * * 1-5'
     
-    # 3. 23:30 שעון ישראל (20:30 UTC)
-    - cron: '30 20 * * 1-5'
+    # 3. 23:22 שעון ישראל (20:22 UTC)
+    - cron: '22 20 * * 1-5'
 
   workflow_dispatch:
 
@@ -42,6 +42,6 @@ jobs:
               page = browser.new_page()
               page.goto(url)
               # המתנה של 15 שניות כדי לוודא ש-Streamlit יצר את חיבור ה-WebSocket והתחיל את הרינדור
-              time.sleep(120)
+              time.sleep(15)
               print('✅ Page triggered successfully!')
           "
