@@ -15,6 +15,7 @@ import whisper
 import shutil
 from dotenv import load_dotenv
 import streamlit as st
+from scipy.interpolate import PchipInterpolator
 import PIL.Image
 from PIL import Image, ImageDraw, ImageFont
 from google import genai
@@ -457,12 +458,24 @@ def create_caption_clip(text, duration, canvas_size=(1000, 220)):
 
 def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1080, 1920)):
     prices = stock_data['history'].values
-    n_points = len(prices)
-    start_points = min(5, n_points)
+    n_original = len(prices)
 
     is_positive = stock_data['change_pct'] >= 0
     line_color = "#00E676" if is_positive else "#FF1744"
     grid_color = "#2A3447"
+
+    # -------------------------------------------------------------
+    # 🌊 יצירת מסלול גלישה חלק (600 נקודות עגולות מתוך הדאטה)
+    # -------------------------------------------------------------
+    x_orig = np.arange(n_original)
+
+    # 600 נקודות יתנו התקדמות חלקה בכל פריים ב-24fps
+    n_dense = 600
+    x_dense = np.linspace(0, n_original - 1, n_dense)
+
+    # PCHIP שומר על המנהג הטבעי של המניה בלי ליצור חריגות/שפיצים גרוטסקיים
+    interp_func = PchipInterpolator(x_orig, prices)
+    y_dense = interp_func(x_dense)
 
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
     canvas = FigureCanvasAgg(fig)
@@ -471,38 +484,40 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
     y_range = y_max - y_min if y_max != y_min else 1.0
     y_padding = y_range * 0.30
 
-    # פונקציה פנימית שמייצרת פריים RGBA (4 ערוצים כולל שקיפות)
     def render_rgba_frame(t):
         ax.clear()
 
-        # 🟢 שקיפות מלאה לרקע של Matplotlib!
+        # שקיפות מלאה לרקע
         fig.patch.set_facecolor('none')
         fig.patch.set_alpha(0.0)
         ax.set_facecolor('none')
         ax.patch.set_alpha(0.0)
 
-        # 1. רשת בורסה (מופיעה בעדינות מעל סרטון הרקע)
-        ax.set_xticks(np.linspace(0, n_points, 6))
+        # 1. רשת בורסה
+        ax.set_xticks(np.linspace(0, n_original, 6))
         ax.set_yticks(np.linspace(y_min - y_padding, y_max + y_padding, 8))
         ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
         ax.grid(True, color=grid_color, linestyle='--', linewidth=1.5, alpha=0.5)
         ax.set_axisbelow(True)
 
-        idx = int(start_points + (t / duration) * (n_points - start_points))
-        idx = min(max(start_points, idx), n_points)
+        # 2. חיתוך הדאטה המעובה לפי השניה המדויקת בסרטון
+        idx = int((t / duration) * (n_dense - 1))
+        idx = max(1, min(idx, n_dense - 1))
 
-        sub_prices = prices[:idx]
-        curr_price = sub_prices[-1]
+        curr_x = x_dense[idx]
+        curr_price = y_dense[idx]
 
-        # 2. ציור הגרף והצללה שקופה
-        ax.plot(sub_prices, color=line_color, linewidth=8)
-        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.2)
+        sub_x = x_dense[:idx + 1]
+        sub_y = y_dense[:idx + 1]
 
-        # 3. נקודה בקצה הקו
-        curr_x = len(sub_prices) - 1
+        # 3. ציור הקו ה"גולש" והצללה שקופה
+        ax.plot(sub_x, sub_y, color=line_color, linewidth=8)
+        ax.fill_between(sub_x, sub_y, y_min - y_padding, color=line_color, alpha=0.2)
+
+        # 4. נקודה בקצה הקו במקום הרציף
         ax.plot(curr_x, curr_price, marker='o', markersize=14, color=line_color)
 
-        # 4. תווית מחיר
+        # 5. תווית מחיר שזזה בצורה רציפה לגמרי
         ax.text(
             curr_x,
             curr_price + (y_padding * 0.12),
@@ -515,7 +530,7 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
             bbox=dict(boxstyle="round,pad=0.3", facecolor=line_color, edgecolor="none", alpha=0.95)
         )
 
-        # 5. באנרים עליונים
+        # 6. באנרים עליונים
         if market_metrics:
             ticker_text = f"S&P 500: {market_metrics.get('sp500')}   |   BTC: {market_metrics.get('btc')}"
             ax.text(
@@ -533,7 +548,7 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
                 bbox=dict(boxstyle="round,pad=0.4", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=1.5)
             )
 
-        ax.set_xlim(-1, n_points + 1)
+        ax.set_xlim(-1, n_original + 1)
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
         for spine in ax.spines.values():
             spine.set_visible(False)
@@ -541,7 +556,6 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
         canvas.draw()
         return np.asarray(canvas.buffer_rgba())
 
-    # --- בנאי הקליפ עם ערוץ Mask לשקיפות מלאה ב-MoviePy ---
     def make_rgb_frame(t):
         return render_rgba_frame(t)[:, :, :3]
 
