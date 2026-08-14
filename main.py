@@ -492,9 +492,12 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
             # MARKET CAP קטן בפינה השמאלית העליונה (fontsize=24, y=0.90)
             mcap_text = f"MARKET CAP: {market_metrics.get('mcap')}"
             ax.text(
-                0.05, 0.90, mcap_text,
+                0.5, 0.89, mcap_text,  # x=0.5 מעמיד אותה במרכז האופקי
                 transform=ax.transAxes,
-                color="white", fontsize=24, fontweight="bold", ha="left", va="top",
+                color="white",
+                fontsize=24,
+                fontweight="bold",
+                ha="center", va="top",  # ha="center" מיישר את התיבה למרכז
                 bbox=dict(boxstyle="round,pad=0.4", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=1.5)
             )
 
