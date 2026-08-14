@@ -229,27 +229,34 @@ def generate_script_and_titles_with_ai(stock_data):
     client = genai.Client(api_key=api_key)
 
     prompt = f"""
-    You are a high-energy financial content creator for TikTok/Shorts/Reels.
-    Create a 1 minute video script about this stock movement:
-    - Symbol: {stock_data['symbol']}
-    - Current Price: ${stock_data['current_price']}
-    - Today's Change: {stock_data['change_pct']}%
-    - News: {stock_data['news']}
-
-    Requirements:
-    1. Strong, scroll-stopping hook in the first second.
-    2. Explain the price movement in exciting, clear English.
-    3. Avoid Using Filler Words and Gaps, jst alot of engaging data
-    3. Call to Action question at the end to generate comments.
-    4. Return ONLY valid JSON with 5 specific fields:
-    {{
-      "youtube_title": "Catchy YouTube Short title with emojis (e.g. NVDA Surges +8.45%! Buy Now? 🚀)",
-      "overlay_headline": "2 to 4 WORDS IN ALL CAPS FOR TOP OVERLAY (e.g. NVDA EXPLODES!)",
-      "voiceover_text": "The full spoken script for narration",
-      "description": "A short, engaging description for the stock video",
-      "tags": "5-7 tags separated by commas (e.g. NVDA,Stocks,Investing,AI)"
-    }}
-    """
+        You are a high-energy financial content creator for TikTok, YouTube Shorts, and Instagram Reels.
+        Create a fast-paced 60-second video script about this stock movement:
+        - Symbol: {stock_data['symbol']}
+        - Current Price: ${stock_data['current_price']}
+        - Today's Change: {stock_data['change_pct']}%
+        - News Context: {stock_data['news']}
+        
+        CRITICAL SCRIPTING RULES:
+        1. SCROLL-STOPPING HOOK: Start instantly with a high-stakes, dramatic statement in the first 2 seconds.
+        2. OPTIMIZED FOR TTS (RETENTION):
+           - Write purely in natural, spoken English.
+           - ABSOLUTELY NO dashes (-), ellipses (...), semicolons (;), or complex formatting that causes Text-To-Speech (TTS) engines to pause awkwardly.
+           - Keep punctuation strictly to simple periods and commas for a relentless, fast pace.
+        3. INSTITUTIONAL STORYTELLING (NO BORING NAMES):
+           - Focus on big market forces, macro trends, and major institutions (e.g., Wall Street, JPMorgan, Big Tech, The Fed) rather than obscure individuals or random executives.
+           - Deliver dense, high-value financial data in plain, exciting terms.
+        4. SUBTLE & NATURAL ENDING:
+           - End with a quick, effortless question that sparks organic debate in the comments. Avoid pushy or needy Calls to Action.
+        5. STRICT OUTPUT FORMAT:
+           - Return ONLY a valid JSON object with the following 5 fields:
+        {{
+          "youtube_title": "High-CTR title with emojis (e.g., NVDA Unexpected Move! Buy Or Pass? 🚀)",
+          "overlay_headline": "2 to 4 WORDS IN ALL CAPS FOR ON-SCREEN OVERLAY (e.g., NVDA HUGE CRASH!)",
+          "voiceover_text": "The full fluid script for narration without TTS glitches",
+          "description": "A short, punchy summary for the short video",
+          "tags": "5-7 relevant tags separated by commas (e.g., NVDA,Stocks,Investing,Trading)"
+        }}
+        """
 
     response = client.models.generate_content(
         model="gemini-flash-lite-latest",
