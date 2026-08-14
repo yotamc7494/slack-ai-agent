@@ -105,81 +105,132 @@ def get_comparison_data(ticker1, ticker2, initial_investment=100):
   return v1, v2, start_date.year
 
 
-def make_animated_comparison_chart(v1, v2, ticker1, ticker2, start_year, investment, duration, size=(1080, 1920)):
-    n_original = len(v1)
+def make_animated_comparison_chart(
+    v1,
+    v2,
+    ticker1,
+    ticker2,
+    start_year,
+    investment,
+    duration,
+    size=(1080, 1920),
+):
+  n_original = len(v1)
 
-    n_dense = 1000
-    x_orig = np.arange(n_original)
-    x_dense = np.linspace(0, n_original - 1, n_dense)
+  n_dense = 1000
+  x_orig = np.arange(n_original)
+  x_dense = np.linspace(0, n_original - 1, n_dense)
 
-    interp_1 = PchipInterpolator(x_orig, v1.values)
-    interp_2 = PchipInterpolator(x_orig, v2.values)
+  interp_1 = PchipInterpolator(x_orig, v1.values)
+  interp_2 = PchipInterpolator(x_orig, v2.values)
 
-    y1_dense = interp_1(x_dense)
-    y2_dense = interp_2(x_dense)
+  y1_dense = interp_1(x_dense)
+  y2_dense = interp_2(x_dense)
 
-    y_max = max(max(y1_dense), max(y2_dense))
-    y_min = 90
+  y_max = max(max(y1_dense), max(y2_dense))
+  y_min = 90
 
-    fig, ax = plt.subplots(figsize=(size[0] / 100, size[1] / 100), dpi=100)
-    canvas = FigureCanvasAgg(fig)
+  fig, ax = plt.subplots(figsize=(size[0] / 100, size[1] / 100), dpi=100)
+  canvas = FigureCanvasAgg(fig)
 
-    def render_rgba_frame(t):
-        ax.clear()
+  # 🟢 אופטימיזציה 1: הגדרת רקע וכותרת סטטית פעם אחת בלבד בחוץ!
+  fig.patch.set_facecolor(BG_COLOR)
+  header_text = (
+      f"IF YOU INVESTED ${investment}\nIN {ticker1} vs {ticker2} IN"
+      f" {start_year}..."
+  )
+  fig.text(
+      0.5,
+      0.90,
+      header_text,
+      color="white",
+      fontsize=26,
+      fontweight="bold",
+      ha="center",
+      va="top",
+      bbox=dict(
+          boxstyle="square,pad=0.5",
+          facecolor="#141A26",
+          edgecolor=GRID_COLOR,
+          alpha=0.9,
+      ),
+  )
 
-        fig.patch.set_facecolor(BG_COLOR)
-        ax.set_facecolor(BG_COLOR)
-        ax.grid(True, color=GRID_COLOR, linestyle='--', linewidth=1, alpha=0.5)
+  def render_rgba_frame(t):
+    ax.clear()
 
-        idx = int((t / duration) * (n_dense - 1))
-        idx = max(1, min(idx, n_dense - 1))
+    ax.set_facecolor(BG_COLOR)
+    ax.grid(True, color=GRID_COLOR, linestyle="--", linewidth=1, alpha=0.5)
 
-        sub_x = x_dense[:idx + 1]
-        sub_y1 = y1_dense[:idx + 1]
-        sub_y2 = y2_dense[:idx + 1]
+    idx = int((t / duration) * (n_dense - 1))
+    idx = max(1, min(idx, n_dense - 1))
 
-        # ציור הקווים וההצללות
-        ax.plot(sub_x, sub_y1, color=COLOR_1, linewidth=6, label=ticker1)
-        ax.fill_between(sub_x, sub_y1, y_min, color=COLOR_1, alpha=0.1)
+    sub_x = x_dense[: idx + 1]
+    sub_y1 = y1_dense[: idx + 1]
+    sub_y2 = y2_dense[: idx + 1]
 
-        ax.plot(sub_x, sub_y2, color=COLOR_2, linewidth=6, label=ticker2)
-        ax.fill_between(sub_x, sub_y2, y_min, color=COLOR_2, alpha=0.1)
+    # ציור הקווים וההצללות
+    ax.plot(sub_x, sub_y1, color=COLOR_1, linewidth=6, label=ticker1)
+    ax.fill_between(sub_x, sub_y1, y_min, color=COLOR_1, alpha=0.1)
 
-        # נקודות קצה
-        ax.plot(sub_x[-1], sub_y1[-1], marker='o', markersize=12, color=COLOR_1)
-        ax.plot(sub_x[-1], sub_y2[-1], marker='o', markersize=12, color=COLOR_2)
+    ax.plot(sub_x, sub_y2, color=COLOR_2, linewidth=6, label=ticker2)
+    ax.fill_between(sub_x, sub_y2, y_min, color=COLOR_2, alpha=0.1)
 
-        v1_curr = sub_y1[-1]
-        v2_curr = sub_y2[-1]
+    # נקודות קצה
+    ax.plot(sub_x[-1], sub_y1[-1], marker="o", markersize=12, color=COLOR_1)
+    ax.plot(sub_x[-1], sub_y2[-1], marker="o", markersize=12, color=COLOR_2)
 
-        # תוויות מחיר דינמיות
-        ax.text(sub_x[-1], v1_curr + (y_max * 0.03), f"{ticker1}\n${v1_curr:,.0f}",
-                color=COLOR_1, fontsize=24, fontweight='bold', ha='center', va='bottom',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor=BG_COLOR, edgecolor=COLOR_1, alpha=0.85))
+    v1_curr = sub_y1[-1]
+    v2_curr = sub_y2[-1]
 
-        ax.text(sub_x[-1], v2_curr + (y_max * 0.03), f"{ticker2}\n${v2_curr:,.0f}",
-                color=COLOR_2, fontsize=24, fontweight='bold', ha='center', va='bottom',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor=BG_COLOR, edgecolor=COLOR_2, alpha=0.85))
+    # תוויות מחיר דינמיות
+    ax.text(
+        sub_x[-1],
+        v1_curr + (y_max * 0.03),
+        f"{ticker1}\n${v1_curr:,.0f}",
+        color=COLOR_1,
+        fontsize=24,
+        fontweight="bold",
+        ha="center",
+        va="bottom",
+        bbox=dict(
+            boxstyle="round,pad=0.3",
+            facecolor=BG_COLOR,
+            edgecolor=COLOR_1,
+            alpha=0.85,
+        ),
+    )
 
-        ax.set_xlim(- (n_dense * 0.05), n_dense + (n_dense * 0.1))
-        ax.set_ylim(y_min, y_max * 1.35)  # מרווח נשימה לכותרת
+    ax.text(
+        sub_x[-1],
+        v2_curr + (y_max * 0.03),
+        f"{ticker2}\n${v2_curr:,.0f}",
+        color=COLOR_2,
+        fontsize=24,
+        fontweight="bold",
+        ha="center",
+        va="bottom",
+        bbox=dict(
+            boxstyle="round,pad=0.3",
+            facecolor=BG_COLOR,
+            edgecolor=COLOR_2,
+            alpha=0.85,
+        ),
+    )
 
-        ax.tick_params(axis='both', colors='white', labelsize=18)
-        ax.set_xticks([])
-        for spine in ax.spines.values(): spine.set_visible(False)
+    ax.set_xlim(-(n_dense * 0.05), n_dense + (n_dense * 0.1))
+    ax.set_ylim(y_min, y_max * 1.35)
 
-        # 🟢 כותרת עליונה מרכזית (במקום TextClip של MoviePy!)
-        header_text = f"IF YOU INVESTED ${investment}\nIN {ticker1} vs {ticker2} IN {start_year}..."
-        fig.text(0.5, 0.90, header_text, color='white', fontsize=26, fontweight='bold',
-                 ha='center', va='top', bbox=dict(boxstyle="square,pad=0.5", facecolor="#141A26", edgecolor=GRID_COLOR, alpha=0.9))
+    ax.tick_params(axis="both", colors="white", labelsize=18)
+    ax.set_xticks([])
+    for spine in ax.spines.values():
+      spine.set_visible(False)
 
-        canvas.draw()
-        return np.asarray(canvas.buffer_rgba())[:, :, :3]
+    canvas.draw()
+    return np.asarray(canvas.buffer_rgba())[:, :, :3]
 
-    chart_clip = VideoClip(render_rgba_frame, duration=duration)
-    plt.close(fig)
-    return chart_clip
-
+  chart_clip = VideoClip(render_rgba_frame, duration=duration)
+  return chart_clip
 
 def create_comparison_fomo_video(
     ticker1, ticker2, music_path, output_filename="fomo_comparison.mp4"
