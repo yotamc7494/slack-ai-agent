@@ -18,7 +18,7 @@ if "token" in st.query_params:
     st.info("⚡ הופעל מרחוק דרך Webhook!")
 
     # הרצת היצירה
-    filename = view_final_video()
+    filename = render_final_video()
     st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
 
     # עצירת המשך רינדור הממשק
