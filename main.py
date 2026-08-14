@@ -69,7 +69,7 @@ def mark_stock_as_used(ticker_symbol):
         json.dump({"date": today_str, "used": list(used_stocks)}, f)
 
 
-def get_top_moving_stock():
+def get_top_moving_stock(test=False):
     used_today = get_used_stocks_today()
     print(f"📋 Stocks already used today ({date.today()}): {list(used_today) if used_today else 'None'}")
 
@@ -111,7 +111,8 @@ def get_top_moving_stock():
         return get_top_moving_stock_fallback()
 
     if top_data:
-        mark_stock_as_used(best_ticker)
+        if not test:
+            mark_stock_as_used(best_ticker)
         print(f"🎯 Selected: {best_ticker} with {top_data['change_pct']}% change")
 
     return top_data
@@ -423,6 +424,73 @@ def render_final_video():
         tags=tags
     )
     print(f"🚀 Uploaded To YouTube: {script_data.get('youtube_title')}")
+
+
+def view_final_video():
+    stock_data = get_top_moving_stock(test=True)
+
+    print("🤖 Generating script with gemini-flash-lite-latest...")
+    script_data = generate_script_and_titles_with_ai(stock_data)
+
+    print("\n" + "=" * 60)
+    print(f"📌 YOUTUBE TITLE: {script_data.get('youtube_title')}")
+    print(f"🎬 OVERLAY HEADLINE: {script_data.get('overlay_headline')}")
+    print("=" * 60 + "\n")
+
+    print("🎙️ Generating Voiceover...")
+    audio_file = "voiceover.mp3"
+    asyncio.run(create_tts_async(script_data['voiceover_text'], audio_file))
+
+    audio_clip = AudioFileClip(audio_file)
+    duration = audio_clip.duration
+
+    print("🎯 Syncing captions with Whisper...")
+    captions = get_exact_captions_with_whisper(audio_file, words_per_caption=2)
+
+    caption_clips = []
+    temp_cap_files = []
+
+    print(f"💬 Creating {len(captions)} frame-accurate caption overlays...")
+    for cap in captions:
+        c_dur = cap['end'] - cap['start']
+        if c_dur <= 0.05:
+            continue
+        c_clip, tmp_img = create_caption_clip(cap['text'], c_dur)
+        c_clip = c_clip.set_start(cap['start']).set_position(('center', 1420))
+        caption_clips.append(c_clip)
+        temp_cap_files.append(tmp_img)
+
+    print("🎨 Creating High-Energy Graphics Overlay...")
+    overlay_img_path = create_overlay_graphics(script_data, stock_data)
+    overlay_clip = ImageClip(overlay_img_path).set_duration(duration)
+
+    print("📊 Rendering Animated Stock Chart...")
+    chart_clip = make_animated_chart_video(stock_data, duration=duration)
+
+    print("🎬 Compositing Video with Captions...")
+    all_layers = [chart_clip, overlay_clip] + caption_clips
+    final_video = CompositeVideoClip(all_layers).set_audio(audio_clip).set_duration(duration)
+
+    clean_symbol = stock_data['symbol']
+    output_filename = f"STOCK_{clean_symbol}_{int(stock_data['change_pct'])}pct.mp4"
+
+    final_video.write_videofile(
+        output_filename,
+        fps=24,
+        codec="libx264",
+        audio_codec="aac"
+    )
+
+    # --- ניקוי כל קבצי התמונות והאודיו הזמניים ---
+    for tmp in temp_cap_files + [overlay_img_path, audio_file]:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+
+    print(f"\n✅ SUCCESS! Video saved as: {output_filename}")
+    return output_filename
 
 if __name__ == "__main__":
     render_final_video()
