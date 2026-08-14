@@ -343,15 +343,14 @@ def create_overlay_graphics(script_data, stock_data, canvas_size=(1080, 1920)):
     canvas = Image.new('RGBA', canvas_size, (0, 0, 0, 0))
 
     headline_text = script_data.get("overlay_headline", f"{stock_data['symbol']} MOVES!").upper()
-    font_size = 85 if len(headline_text) < 15 else 65
+    font_size = 75 if len(headline_text) < 15 else 60
     font = load_system_font(font_size)
 
     neon_colors = ["#FFD700", "#00FFFF", "#FF3366", "#33FF57", "#FF9900", "#FFFFFF"]
     chosen_color = random.choice(neon_colors)
-    rotation_angle = random.uniform(-8.0, 8.0)
+    rotation_angle = random.uniform(-6.0, 6.0)
 
-    # 1. יצירת תיבת טקסט מוגדלת לכותרת
-    text_box_size = (1000, 350)
+    text_box_size = (950, 250)
     text_img = Image.new('RGBA', text_box_size, (0, 0, 0, 0))
     draw_text = ImageDraw.Draw(text_img)
 
@@ -359,35 +358,33 @@ def create_overlay_graphics(script_data, stock_data, canvas_size=(1080, 1920)):
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx, ty = (text_box_size[0] - tw) / 2, (text_box_size[1] - th) / 2
 
-    draw_text.text((tx, ty), headline_text, font=font, fill=chosen_color, stroke_width=12, stroke_fill="black")
+    draw_text.text((tx, ty), headline_text, font=font, fill=chosen_color, stroke_width=10, stroke_fill="black")
     rotated_text = text_img.rotate(rotation_angle, expand=True, resample=Image.Resampling.BICUBIC)
 
-    rx, ry = int((canvas_size[0] - rotated_text.width) / 2), 220
+    # הזזנו את הכותרת ל-ry = 380 כדי שתשב בול מתחת לבאנרים העליונים!
+    rx, ry = int((canvas_size[0] - rotated_text.width) / 2), 380
     canvas.paste(rotated_text, (rx, ry), rotated_text)
 
-    # 2. יצירת הבאדג' של האחוזים והמחיר
+    # באדג' האחוזים והמחיר במרכז
     pct = stock_data['change_pct']
     pct_text = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
     pct_color = "#00E676" if pct >= 0 else "#FF1744"
     price_text = f"${stock_data['current_price']:.2f}"
 
-    badge_img = Image.new('RGBA', (900, 450), (0, 0, 0, 0))
+    badge_img = Image.new('RGBA', (900, 400), (0, 0, 0, 0))
     draw_badge = ImageDraw.Draw(badge_img)
 
-    pct_font = load_system_font(130)
-    price_font = load_system_font(75)
+    pct_font = load_system_font(120)
+    price_font = load_system_font(70)
 
-    # ציור אחוז השינוי
     p_bbox = draw_badge.textbbox((0, 0), pct_text, font=pct_font)
     pw = p_bbox[2] - p_bbox[0]
-    draw_badge.text(((900 - pw) / 2, 40), pct_text, font=pct_font, fill=pct_color, stroke_width=14, stroke_fill="black")
+    draw_badge.text(((900 - pw) / 2, 20), pct_text, font=pct_font, fill=pct_color, stroke_width=12, stroke_fill="black")
 
-    # ציור המחיר
     pr_bbox = draw_badge.textbbox((0, 0), price_text, font=price_font)
     prw = pr_bbox[2] - pr_bbox[0]
-    draw_badge.text(((900 - prw) / 2, 250), price_text, font=price_font, fill="white", stroke_width=10, stroke_fill="black")
+    draw_badge.text(((900 - prw) / 2, 220), price_text, font=price_font, fill="white", stroke_width=8, stroke_fill="black")
 
-    # הדבקת הבאדג' במרכז הוידאו
     canvas.paste(badge_img, (90, 750), badge_img)
 
     output_path = "overlay_graphics.png"
@@ -426,6 +423,8 @@ def create_caption_clip(text, duration, canvas_size=(1000, 220)):
 # -----------------------------------------------------------------------------
 # 6. הנפשת הגרף
 # -----------------------------------------------------------------------------
+
+
 def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1080, 1920)):
     prices = stock_data['history'].values
     n_points = len(prices)
@@ -436,22 +435,20 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
     bg_color = "#0B0E14"
     grid_color = "#1E2638"
 
-    # קנבס ברזולוציית בסיס של 1080x1920 (10.8x19.2 אינץ' ב-100 DPI)
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
     canvas = FigureCanvasAgg(fig)
 
     y_min, y_max = min(prices), max(prices)
     y_range = y_max - y_min if y_max != y_min else 1.0
-    # הגדלת המרווח בצירי ה-Y כדי למנוע חפיפה עם הבאנרים העליונים
-    y_padding = y_range * 0.35
+    y_padding = y_range * 0.30
 
     def make_frame(t):
         ax.clear()
         fig.patch.set_facecolor(bg_color)
         ax.set_facecolor(bg_color)
 
-        # 1. רשת בורסה ברקע
-        ax.grid(True, color=grid_color, linestyle='--', linewidth=2.0, alpha=0.5)
+        # 1. רשת בורסה
+        ax.grid(True, color=grid_color, linestyle='--', linewidth=1.5, alpha=0.4)
         ax.set_axisbelow(True)
 
         idx = int(start_points + (t / duration) * (n_points - start_points))
@@ -460,45 +457,45 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
         sub_prices = prices[:idx]
         curr_price = sub_prices[-1]
 
-        # 2. קו גרף עבה ובולט למובייל (linewidth=11)
-        ax.plot(sub_prices, color=line_color, linewidth=11)
-        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.18)
+        # 2. קו הגרף (עובי מאוזן = 8)
+        ax.plot(sub_prices, color=line_color, linewidth=8)
+        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.15)
 
-        # 3. נקודה גדולה בראש הקו (markersize=20)
+        # 3. נקודה בקצה הקו
         curr_x = len(sub_prices) - 1
-        ax.plot(curr_x, curr_price, marker='o', markersize=20, color=line_color)
+        ax.plot(curr_x, curr_price, marker='o', markersize=14, color=line_color)
 
-        # 4. תווית מחיר בולטת וקריאה (fontsize=42)
+        # 4. תווית מחיר זזה קומפקטית מעל הנקודה (fontsize=28 במקום 42)
         ax.text(
             curr_x,
-            curr_price + (y_padding * 0.15),
+            curr_price + (y_padding * 0.12),
             f" ${curr_price:.2f} ",
             color="white",
-            fontsize=42,
+            fontsize=28,
             fontweight="bold",
             ha="center",
             va="bottom",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor=line_color, edgecolor="none", alpha=0.95)
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=line_color, edgecolor="none", alpha=0.95)
         )
 
-        # 5. באנרים עליונים - מופרדים בגובה ובפונט קריא
+        # 5. באנרים עליונים קומפקטיים (לא מפריעים לכותרות)
         if market_metrics:
-            # באנר עליון מרכזי: S&P 500 | BTC (מוצב ב-y=0.95)
+            # S&P 500 | BTC בגודל נקי מעלה (fontsize=24)
             ticker_text = f"S&P 500: {market_metrics.get('sp500')}   |   BTC: {market_metrics.get('btc')}"
             ax.text(
-                0.5, 0.95, ticker_text,
+                0.5, 0.96, ticker_text,
                 transform=ax.transAxes,
-                color="#FFFFFF", fontsize=32, fontweight="bold", ha="center", va="top",
-                bbox=dict(boxstyle="square,pad=0.7", facecolor="#141A26", edgecolor="#2A3447", alpha=0.9, linewidth=2)
+                color="#FFFFFF", fontsize=24, fontweight="bold", ha="center", va="top",
+                bbox=dict(boxstyle="square,pad=0.5", facecolor="#141A26", edgecolor="#2A3447", alpha=0.9, linewidth=1.5)
             )
 
-            # כרטיסיית Market Cap בצד (מוצבת ב-y=0.86 כדי למנוע התנגשות!)
-            mcap_text = f"MARKET CAP\n{market_metrics.get('mcap')}"
+            # MARKET CAP קטן בפינה השמאלית העליונה (fontsize=24, y=0.90)
+            mcap_text = f"MARKET CAP: {market_metrics.get('mcap')}"
             ax.text(
-                0.06, 0.86, mcap_text,
+                0.05, 0.90, mcap_text,
                 transform=ax.transAxes,
-                color="white", fontsize=38, fontweight="bold", ha="left", va="top",
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=2)
+                color="white", fontsize=24, fontweight="bold", ha="left", va="top",
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=1.5)
             )
 
         ax.set_xlim(-1, n_points + 1)
@@ -595,7 +592,7 @@ def render_final_video():
         file_path=output_filename,
         title=script_data.get('youtube_title'),
         description=script_data.get('description'),
-        tags=tags
+        tags=parsed_tags
     )
     print(f"🚀 Uploaded To YouTube: {script_data.get('youtube_title')}")
 
