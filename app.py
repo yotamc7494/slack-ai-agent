@@ -20,9 +20,16 @@ if run_full or run_test:
     if is_test_mode:
         st.warning("🧪 מריץ במצב ניסיון: הסרטון לא יועלה ליוטיוב והמניה לא תישמר ב-used stocks.")
         filename = view_final_video()
-        if filename and os.path.exists(filename):
-            st.subheader("🎥 תצוגה מקדימה של הסרטון:")
-            st.video(filename)
+        st.success("✅ הסרטון נוצר בהצלחה!")
+
+        # קריאת הקובץ ויצירת כפתור הורדה דפדפני
+        with open(filename, "rb") as file:
+            st.download_button(
+                label="📥 הורד את הסרטון למחשב",
+                data=file,
+                file_name=os.path.basename(filename),
+                mime="video/mp4"
+            )
     else:
         st.info("🚀 מריץ תהליך מלא כולל העלאה ליוטיוב...")
         render_final_video()
