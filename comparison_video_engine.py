@@ -6,15 +6,16 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip
 from scipy.interpolate import PchipInterpolator
 import os
+import requests
 import tempfile
 import time
-from requests import Session
 
 # --- הגדרות עיצוב ---
 BG_COLOR = "#131722"
 GRID_COLOR = "#2A3447"
 COLOR_1 = "#00E676"  # ירוק ניאון למניה א'
 COLOR_2 = "#2979FF"  # כחול ניאון למניה ב'
+
 try:
   cache_dir = os.path.join(tempfile.gettempdir(), "yf_cache")
   os.makedirs(cache_dir, exist_ok=True)
@@ -22,62 +23,79 @@ try:
 except Exception:
   pass
 
-def get_comparison_data(ticker1, ticker2, initial_investment=100):
-  print(f"📥 Fetching historical data for {ticker1} and {ticker2}...")
 
-  # יצירת Session עם User-Agent של דפדפן
-  session = Session()
-  session.headers.update({
+def fetch_yahoo_chart_direct(ticker, period='max', interval='1wk'):
+  """מושך נתוני מניה ישירות מ-API ה-Chart של Yahoo Finance ללא תלות ב-yfinance."""
+  url = f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range={period}&interval={interval}'
+  headers = {
       'User-Agent': (
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          ' (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
       )
-  })
+  }
 
-  df = None
-  for attempt in range(4):
+  for attempt in range(3):
     try:
-      df = yf.download(
-          tickers=f"{ticker1} {ticker2}",
-          period="max",
-          interval="1wk",
-          progress=False,
-          auto_adjust=True,
-          session=session,
-          threads=False,  # מונע כתיבות מקבילות שמקפיצות database is locked
-      )
+      response = requests.get(url, headers=headers, timeout=10)
+      if response.status_code == 200:
+        data = response.json()
+        result = data['chart']['result'][0]
 
-      if df is not None and not df.empty:
-        break
+        timestamps = result['timestamp']
+        closes = result['indicators']['quote'][0]['close']
+
+        # יצירת DataFrame נקי
+        df = pd.DataFrame(
+            {'Close': closes},
+            index=pd.to_datetime(timestamps, unit='s', utc=True),
+        )
+        df.index = df.index.tz_localize(
+            None
+        )  # הסרת Timezone לסנכרון קל בין מניות
+        df = df.dropna()
+
+        if not df.empty:
+          return df['Close']
+      elif response.status_code == 429:
+        print(f'⚠️ Rate limit hit for {ticker}, retrying in 3s...')
+        time.sleep(3)
     except Exception as e:
-      print(f"⚠️ Attempt {attempt+1} failed: {e}")
-      time.sleep(3)
+      print(f'⚠️ Error fetching {ticker} (attempt {attempt+1}): {e}')
+      time.sleep(2)
 
-  if df is None or df.empty:
-    print("❌ Failed to fetch data from Yahoo Finance.")
-    return None, None, None
+  return pd.Series(dtype=float)
 
-  # חילוץ נתונים מתוך הטבלה
-  try:
-    close_df = df['Close'] if isinstance(df.columns, pd.MultiIndex) else df
-    h1 = close_df[ticker1].dropna()
-    h2 = close_df[ticker2].dropna()
-  except KeyError as e:
-    print(f"❌ Could not extract ticker data: {e}")
-    return None, None, None
+
+def get_comparison_data(ticker1, ticker2, initial_investment=100):
+  print(
+      f'📥 Fetching historical data for {ticker1} and {ticker2} directly'
+      ' via Yahoo API...'
+  )
+
+  # משיכה ישירה של שתי המניות
+  h1 = fetch_yahoo_chart_direct(ticker1, period='max', interval='1wk')
+  time.sleep(1)  # השהייה קצרה מונעת עומס על ה-API
+  h2 = fetch_yahoo_chart_direct(ticker2, period='max', interval='1wk')
 
   if h1.empty or h2.empty:
+    print('❌ Failed to fetch data from Yahoo Finance API.')
     return None, None, None
 
-  # סנכרון תאריך התחלה משותף ונרמול ל-100$
+  # מציאת תאריך התחלה משותף (ה-IPO המאוחר מבין השניים)
   start_date = max(h1.index[0], h2.index[0])
+
   h1_aligned = h1[h1.index >= start_date]
   h2_aligned = h2[h2.index >= start_date]
 
+  # סנכרון אינדקסים לפי תאריכים משותפים בלבד
   common_index = h1_aligned.index.intersection(h2_aligned.index)
   h1_final = h1_aligned.loc[common_index]
   h2_final = h2_aligned.loc[common_index]
 
+  if h1_final.empty or h2_final.empty:
+    return None, None, None
+
+  # נרמול ל-100$
   v1 = (h1_final / h1_final.iloc[0]) * initial_investment
   v2 = (h2_final / h2_final.iloc[0]) * initial_investment
 
@@ -168,7 +186,7 @@ def create_comparison_fomo_video(ticker1, ticker2, music_path, output_filename="
     if v1 is None:
         print("❌ Could not generate video due to data fetch error.")
         return
-
+    print(f"🎬 Generating Video For {ticker1} vs {ticker2}")
     # 1. יצירת קליפ הגרף (הכולל כעת גם את הכותרת בתוכו)
     chart_clip = make_animated_comparison_chart(v1, v2, ticker1, ticker2, start_year, investment, duration)
 
