@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import sys
 # ייבוא הפונקציות המקוריות שלך - הנוסחאות עובדות!
 from comparison_video_engine import run_generator
 from main import render_final_video, view_final_video
@@ -16,11 +17,12 @@ col1, col2 = st.columns(2)
 if "WEBHOOK_TOKEN" in st.query_params:
   if st.query_params["WEBHOOK_TOKEN"] == st.secrets.get("WEBHOOK_TOKEN"):
     st.info("⚡ הופעל מרחוק דרך Webhook!")
-
+    sys.stdout.reconfigure(line_buffering=True)
+    print("⚡ Webhook triggered from GitHub Actions!", flush=True)
     # הרצת היצירה
     filename = render_final_video()
     st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-
+    print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
     # עצירת המשך רינדור הממשק
     st.stop()
   else:
