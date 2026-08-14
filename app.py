@@ -13,6 +13,17 @@ st.header("סרטוני מנייה")
 # יצירת עמודות נפרדות עבור סקשן זה
 col1, col2 = st.columns(2)
 
+if "token" in st.query_params:
+  if st.query_params["token"] == st.secrets.get("WEBHOOK_TOKEN"):
+    st.info("⚡ הופעל מרחוק דרך Webhook!")
+
+    # הרצת היצירה
+    filename = view_final_video()
+    st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+
+    # עצירת המשך רינדור הממשק
+    st.stop()
+
 with col1:
     # שינוי התווית לייחודית: הוספת המילה "מנייה"
     run_full = st.button("🚀 הרץ והעלה מנייה ליוטיוב")
