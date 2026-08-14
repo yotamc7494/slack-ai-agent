@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip, CompositeAudioClip
+from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip, CompositeAudioClip,vfx
 from moviepy.audio.fx.audio_fadeout import audio_fadeout
 from moviepy.audio.fx.audio_loop import audio_loop
 from moviepy.audio.fx.volumex import volumex
@@ -207,7 +207,7 @@ def create_comparison_fomo_video(
       background = background.resize(height=1920).crop(
           x_center=background.w / 2, width=1080
       )
-      background = background.fl_image(lambda frame: (frame * 0.1).astype("uint8"))
+      background = background.fx(vfx.colorx, 0.1)
 
       # 3. הרכבת הווידאו והגדרת duration קשיח
       final_video = CompositeVideoClip(
@@ -252,7 +252,7 @@ def create_comparison_fomo_video(
           threads=1,
           preset="ultrafast",
       )
-      print("✅ Done!")
+      print("✅ Done!",flush=True)
       return output_filename
 
 
