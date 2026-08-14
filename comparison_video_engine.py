@@ -153,7 +153,7 @@ def create_comparison_fomo_video(ticker1, ticker2, music_path, output_filename="
     # 2. רקע מוחשך
     background = VideoFileClip("trading_floor_loop.mp4").loop(duration=duration)
     background = background.resize(height=1920).crop(x_center=background.w / 2, width=1080)
-    background = background.colorx(0.1)
+    background = background.fl_image(lambda frame: (frame * 0.1).astype('uint8'))
 
     # 3. הרכבה (בלי TextClip!)
     final_video = CompositeVideoClip([
