@@ -191,7 +191,7 @@ def create_comparison_fomo_video(
       if v1 is None:
         print("❌ Could not generate video due to data fetch error.")
         return
-      print(f"🎬 Generating Video For {ticker1} vs {ticker2}")
+      print(f"🎬 Generating Video For {ticker1} vs {ticker2}",flush=True)
 
       # 1. יצירת קליפ הגרף
       chart_clip = make_animated_comparison_chart(
@@ -242,7 +242,7 @@ def create_comparison_fomo_video(
         final_audio = CompositeAudioClip(audio_tracks).set_duration(duration)
         final_video = final_video.set_audio(final_audio)
 
-      print(f"🎬 Rendering final video: {output_filename}...")
+      print(f"🎬 Rendering final video: {output_filename}...",flush=True)
       final_video.write_videofile(
           output_filename,
           fps=24,
