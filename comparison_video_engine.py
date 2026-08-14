@@ -1,6 +1,8 @@
+import time
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip, TextClip
@@ -17,15 +19,44 @@ FONT_NAME = "Arial"  # וודא שהפונט מותקן במערכת
 
 # --- חלק 1: משיכת נתונים וסנכרון (The Logic) ---
 def get_comparison_data(ticker1, ticker2, initial_investment=100):
-    print(f"📥 Fetching historical data for {ticker1} and {ticker2}...")
+    print(f"📥 Fetching historical data for {ticker1} and {ticker2} in a single batch...")
 
-    # משיכת נתונים שבועיים מקסימליים
-    t1 = yf.Ticker(ticker1)
-    t2 = yf.Ticker(ticker2)
-    h1 = t1.history(period="max", interval="1wk")['Close']
-    h2 = t2.history(period="max", interval="1wk")['Close']
+    # 💡 קריאה מרוכזת אחת ל-2 הטיקרים ביחד כדי למנוע YFRateLimitError
+    df = None
+    for attempt in range(3):  # מנגנון ניסיונות חוזרים אם יאהו עמוס
+        try:
+            df = yf.download(
+                tickers=f"{ticker1} {ticker2}",
+                period="max",
+                interval="1wk",
+                progress=False,
+                auto_adjust=True
+            )
+            if not df.empty:
+                break
+        except Exception as e:
+            print(f"⚠️ Attempt {attempt + 1} failed: {e}")
+            time.sleep(2)  # השהייה קצרה בין ניסיון לניסיון
 
-    if h1.empty or h2.empty: return None, None, None
+    if df is None or df.empty:
+        print("❌ Failed to fetch data due to Yahoo rate limits.")
+        return None, None, None
+
+    # חילוץ עמודות ה-Close של שתי המניות
+    try:
+        if isinstance(df.columns, pd.MultiIndex):
+            close_df = df['Close']
+        else:
+            close_df = df
+
+        h1 = close_df[ticker1].dropna()
+        h2 = close_df[ticker2].dropna()
+    except KeyError as e:
+        print(f"❌ Could not find ticker column in response: {e}")
+        return None, None, None
+
+    if h1.empty or h2.empty:
+        return None, None, None
 
     # מציאת תאריך התחלה משותף (ה-IPO המאוחר מבין השניים)
     start_date = max(h1.index[0], h2.index[0])
@@ -34,13 +65,12 @@ def get_comparison_data(ticker1, ticker2, initial_investment=100):
     h1_aligned = h1[h1.index >= start_date]
     h2_aligned = h2[h2.index >= start_date]
 
-    # סנכרון אינדקסים (לוודא שיש אותן נקודות זמן בדיוק)
+    # סנכרון אינדקסים
     common_index = h1_aligned.index.intersection(h2_aligned.index)
     h1_final = h1_aligned.loc[common_index]
     h2_final = h2_aligned.loc[common_index]
 
-    # --- נרמול ל-100$ (הפיכה לתשואה) ---
-    # נוסחה: (מחיר נוכחי / מחיר התחלתי) * 100
+    # נרמול ל-100$ (הפיכה לתשואה)
     v1 = (h1_final / h1_final.iloc[0]) * initial_investment
     v2 = (h2_final / h2_final.iloc[0]) * initial_investment
 
