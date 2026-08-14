@@ -13,7 +13,7 @@ from googleapiclient.errors import HttpError
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 
 
-def upload_video(file_path, title, description, tags, category_id="24", privacy_status="private", auto_delete=True):
+def upload_video(file_path, title, description, tags, category_id="24", privacy_status="public", auto_delete=True):
     """
     מעלה סרטון ליוטיוב ומוחק את הקובץ המקומי בסיום.
     """
