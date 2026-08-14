@@ -19,4 +19,4 @@ jobs:
     steps:
       - name: Send Webhook to Streamlit
         run: |
-          curl -s "https://YOUR-APP-NAME.streamlit.app/?token=${{ secrets.WEBHOOK_TOKEN }}"
+          curl -s "https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?token=${{ secrets.WEBHOOK_TOKEN }}"
