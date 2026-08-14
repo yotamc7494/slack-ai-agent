@@ -432,8 +432,7 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
 
     is_positive = stock_data['change_pct'] >= 0
     line_color = "#00E676" if is_positive else "#FF1744"
-    bg_color = "#0B0E14"
-    grid_color = "#1E2638"
+    grid_color = "#2A3447"
 
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
     canvas = FigureCanvasAgg(fig)
@@ -442,13 +441,21 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
     y_range = y_max - y_min if y_max != y_min else 1.0
     y_padding = y_range * 0.30
 
-    def make_frame(t):
+    # פונקציה פנימית שמייצרת פריים RGBA (4 ערוצים כולל שקיפות)
+    def render_rgba_frame(t):
         ax.clear()
-        fig.patch.set_facecolor(bg_color)
-        ax.set_facecolor(bg_color)
 
-        # 1. רשת בורסה
-        ax.grid(True, color=grid_color, linestyle='--', linewidth=1.5, alpha=0.4)
+        # 🟢 שקיפות מלאה לרקע של Matplotlib!
+        fig.patch.set_facecolor('none')
+        fig.patch.set_alpha(0.0)
+        ax.set_facecolor('none')
+        ax.patch.set_alpha(0.0)
+
+        # 1. רשת בורסה (מופיעה בעדינות מעל סרטון הרקע)
+        ax.set_xticks(np.linspace(0, n_points, 6))
+        ax.set_yticks(np.linspace(y_min - y_padding, y_max + y_padding, 8))
+        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        ax.grid(True, color=grid_color, linestyle='--', linewidth=1.5, alpha=0.5)
         ax.set_axisbelow(True)
 
         idx = int(start_points + (t / duration) * (n_points - start_points))
@@ -457,15 +464,15 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
         sub_prices = prices[:idx]
         curr_price = sub_prices[-1]
 
-        # 2. קו הגרף (עובי מאוזן = 8)
+        # 2. ציור הגרף והצללה שקופה
         ax.plot(sub_prices, color=line_color, linewidth=8)
-        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.15)
+        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.2)
 
         # 3. נקודה בקצה הקו
         curr_x = len(sub_prices) - 1
         ax.plot(curr_x, curr_price, marker='o', markersize=14, color=line_color)
 
-        # 4. תווית מחיר זזה קומפקטית מעל הנקודה (fontsize=28 במקום 42)
+        # 4. תווית מחיר
         ax.text(
             curr_x,
             curr_price + (y_padding * 0.12),
@@ -478,9 +485,8 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
             bbox=dict(boxstyle="round,pad=0.3", facecolor=line_color, edgecolor="none", alpha=0.95)
         )
 
-        # 5. באנרים עליונים קומפקטיים (לא מפריעים לכותרות)
+        # 5. באנרים עליונים
         if market_metrics:
-            # S&P 500 | BTC בגודל נקי מעלה (fontsize=24)
             ticker_text = f"S&P 500: {market_metrics.get('sp500')}   |   BTC: {market_metrics.get('btc')}"
             ax.text(
                 0.5, 0.96, ticker_text,
@@ -489,41 +495,35 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
                 bbox=dict(boxstyle="square,pad=0.5", facecolor="#141A26", edgecolor="#2A3447", alpha=0.9, linewidth=1.5)
             )
 
-            # MARKET CAP קטן בפינה השמאלית העליונה (fontsize=24, y=0.90)
             mcap_text = f"MARKET CAP: {market_metrics.get('mcap')}"
             ax.text(
-                0.5, 0.89, mcap_text,  # x=0.5 מעמיד אותה במרכז האופקי
+                0.5, 0.89, mcap_text,
                 transform=ax.transAxes,
-                color="white",
-                fontsize=24,
-                fontweight="bold",
-                ha="center", va="top",  # ha="center" מיישר את התיבה למרכז
+                color="white", fontsize=24, fontweight="bold", ha="center", va="top",
                 bbox=dict(boxstyle="round,pad=0.4", facecolor="#141A26", edgecolor=line_color, alpha=0.9, linewidth=1.5)
             )
 
-        ax.set_xticks(np.linspace(0, n_points, 6))
-        ax.set_yticks(np.linspace(y_min - y_padding, y_max + y_padding, 8))
-
-        # מעלימים את המספרים והסרגלים, אך שומרים על הרשת!
-        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-
-        # הגדרת הרשת
-        ax.grid(True, color="#1E2638", linestyle='--', linewidth=1.8, alpha=0.6)
-        ax.set_axisbelow(True)  # דוחף את הרשת אל מאחורי הגרף והשכבות
-
         ax.set_xlim(-1, n_points + 1)
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
-
         for spine in ax.spines.values():
             spine.set_visible(False)
 
         canvas.draw()
-        rgba = np.asarray(canvas.buffer_rgba())
-        return rgba[:, :, :3]
+        return np.asarray(canvas.buffer_rgba())
 
-    video_clip = VideoClip(make_frame, duration=duration)
+    # --- בנאי הקליפ עם ערוץ Mask לשקיפות מלאה ב-MoviePy ---
+    def make_rgb_frame(t):
+        return render_rgba_frame(t)[:, :, :3]
+
+    def make_mask_frame(t):
+        return render_rgba_frame(t)[:, :, 3] / 255.0
+
+    chart_clip = VideoClip(make_rgb_frame, duration=duration)
+    mask_clip = VideoClip(make_mask_frame, duration=duration, ismask=True)
+    chart_clip = chart_clip.set_mask(mask_clip)
+
     plt.close(fig)
-    return video_clip
+    return chart_clip
 
 # -----------------------------------------------------------------------------
 # 7. הרכבה ורינדור סופי של הווידאו
@@ -696,4 +696,4 @@ def view_final_video():
     return output_filename
 
 if __name__ == "__main__":
-    render_final_video()
+    view_final_video()
