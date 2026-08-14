@@ -7,47 +7,64 @@ from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVid
 from scipy.interpolate import PchipInterpolator
 import os
 import time
+from requests import Session
 
 # --- הגדרות עיצוב ---
 BG_COLOR = "#131722"
 GRID_COLOR = "#2A3447"
 COLOR_1 = "#00E676"  # ירוק ניאון למניה א'
 COLOR_2 = "#2979FF"  # כחול ניאון למניה ב'
-
+try:
+    yf.set_tz_cache_location(None)
+except Exception:
+    pass
 
 def get_comparison_data(ticker1, ticker2, initial_investment=100):
     print(f"📥 Fetching historical data for {ticker1} and {ticker2}...")
 
+    # 🟢 2. יצירת Session עם זהות של דפדפן רגיל לעקיפת ה-Rate Limit
+    session = Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
+
     df = None
-    for attempt in range(3):
+    for attempt in range(4):
         try:
+            # 🟢 3. threads=False מונע כתיבות מקבילות שמקפיצות database is locked
             df = yf.download(
                 tickers=f"{ticker1} {ticker2}",
                 period="max",
                 interval="1wk",
                 progress=False,
-                auto_adjust=True
+                auto_adjust=True,
+                session=session,
+                threads=False  # קריטי!
             )
-            if not df.empty:
+
+            if df is not None and not df.empty:
                 break
         except Exception as e:
             print(f"⚠️ Attempt {attempt + 1} failed: {e}")
-            time.sleep(2)
+            time.sleep(3)  # השהייה בין ניסיונות
 
     if df is None or df.empty:
+        print("❌ Failed to fetch data from Yahoo Finance.")
         return None, None, None
 
+    # חילוץ נתונים מתוך הטבלה
     try:
         close_df = df['Close'] if isinstance(df.columns, pd.MultiIndex) else df
         h1 = close_df[ticker1].dropna()
         h2 = close_df[ticker2].dropna()
     except KeyError as e:
-        print(f"❌ Could not find ticker column: {e}")
+        print(f"❌ Could not extract ticker data: {e}")
         return None, None, None
 
     if h1.empty or h2.empty:
         return None, None, None
 
+    # סנכרון תאריך התחלה משותף ונרמול ל-100$
     start_date = max(h1.index[0], h2.index[0])
     h1_aligned = h1[h1.index >= start_date]
     h2_aligned = h2[h2.index >= start_date]
