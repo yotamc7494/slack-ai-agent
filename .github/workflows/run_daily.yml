@@ -42,6 +42,6 @@ jobs:
               page = browser.new_page()
               page.goto(url)
               # המתנה של 15 שניות כדי לוודא ש-Streamlit יצר את חיבור ה-WebSocket והתחיל את הרינדור
-              time.sleep(15)
+              time.sleep(120)
               print('✅ Page triggered successfully!')
           "
