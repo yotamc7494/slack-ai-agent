@@ -652,7 +652,7 @@ def view_final_video():
 
     print("📊 Rendering Animated Stock Chart...")
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
-    bg_video = VideoFileClip("assets/trading_floor_loop.mp4")
+    bg_video = VideoFileClip("trading_floor_loop.mp4")
     bg_video = bg_video.loop(duration=duration)
     bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)
     bg_video = bg_video.fl_image(lambda frame: (frame * 0.22).astype('uint8'))
