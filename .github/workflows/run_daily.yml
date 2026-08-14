@@ -34,7 +34,7 @@ jobs:
           from playwright.sync_api import sync_playwright
           import time
 
-          url = 'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?token=${{ secrets.WEBHOOK_TOKEN }}'
+          url = 'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}'
           print(f'🚀 Opening {url} in Headless Chrome...')
 
           with sync_playwright() as p:
