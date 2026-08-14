@@ -3,21 +3,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from moviepy.editor import VideoClip, VideoFileClip, AudioFileClip, CompositeVideoClip, CompositeAudioClip,vfx
-from moviepy.audio.fx.audio_fadeout import audio_fadeout
-from moviepy.audio.fx.audio_loop import audio_loop
-from moviepy.audio.fx.volumex import volumex
+from moviepy.editor import VideoClip, AudioFileClip, CompositeVideoClip, CompositeAudioClip,vfx, concatenate_videoclips
 from scipy.interpolate import PchipInterpolator
 import os
 import requests
+import random
 import tempfile
 import time
 
 # --- הגדרות עיצוב ---
 BG_COLOR = "#131722"
 GRID_COLOR = "#2A3447"
-COLOR_1 = "#00E676"  # ירוק ניאון למניה א'
-COLOR_2 = "#2979FF"  # כחול ניאון למניה ב'
 
 try:
   cache_dir = os.path.join(tempfile.gettempdir(), "yf_cache")
@@ -113,6 +109,8 @@ def make_animated_comparison_chart(
     start_year,
     investment,
     duration,
+    color1,
+    color2,
     size=(1080, 1920),
 ):
   n_original = len(v1)
@@ -191,15 +189,15 @@ def make_animated_comparison_chart(
     sub_y2 = y2_dense[: idx + 1]
 
     # ציור הקווים
-    ax.plot(sub_x, sub_y1, color=COLOR_1, linewidth=6, label=ticker1)
-    ax.fill_between(sub_x, sub_y1, min(sub_y1), color=COLOR_1, alpha=0.1)
+    ax.plot(sub_x, sub_y1, color=color1, linewidth=6, label=ticker1)
+    ax.fill_between(sub_x, sub_y1, min(sub_y1), color=color1, alpha=0.1)
 
-    ax.plot(sub_x, sub_y2, color=COLOR_2, linewidth=6, label=ticker2)
-    ax.fill_between(sub_x, sub_y2, min(sub_y2), color=COLOR_2, alpha=0.1)
+    ax.plot(sub_x, sub_y2, color=color2, linewidth=6, label=ticker2)
+    ax.fill_between(sub_x, sub_y2, min(sub_y2), color=color2, alpha=0.1)
 
     # נקודות קצה
-    ax.plot(sub_x[-1], sub_y1[-1], marker="o", markersize=12, color=COLOR_1)
-    ax.plot(sub_x[-1], sub_y2[-1], marker="o", markersize=12, color=COLOR_2)
+    ax.plot(sub_x[-1], sub_y1[-1], marker="o", markersize=12, color=color1)
+    ax.plot(sub_x[-1], sub_y2[-1], marker="o", markersize=12, color=color2)
 
     v1_curr = sub_y1[-1]
     v2_curr = sub_y2[-1]
@@ -218,7 +216,7 @@ def make_animated_comparison_chart(
         sub_x[-1],
         v1_curr + (current_y_max * 0.03),
         f"{ticker1}\n${v1_curr:,.0f}",
-        color=COLOR_1,
+        color=color1,
         fontsize=24,
         fontweight="bold",
         ha="center",
@@ -226,7 +224,7 @@ def make_animated_comparison_chart(
         bbox=dict(
             boxstyle="round,pad=0.3",
             facecolor=BG_COLOR,
-            edgecolor=COLOR_1,
+            edgecolor=color1,
             alpha=0.85,
         ),
     )
@@ -235,7 +233,7 @@ def make_animated_comparison_chart(
         sub_x[-1],
         v2_curr + (current_y_max * 0.03),
         f"{ticker2}\n${v2_curr:,.0f}",
-        color=COLOR_2,
+        color=color2,
         fontsize=24,
         fontweight="bold",
         ha="center",
@@ -243,7 +241,7 @@ def make_animated_comparison_chart(
         bbox=dict(
             boxstyle="round,pad=0.3",
             facecolor=BG_COLOR,
-            edgecolor=COLOR_2,
+            edgecolor=color2,
             alpha=0.85,
         ),
     )
@@ -260,89 +258,95 @@ def make_animated_comparison_chart(
   plt.close(fig)  # ניקוי מהותי למניעת תקיעות RAM
   return chart_clip
 
+
+import os
+import random
+import moviepy.audio.fx.all as afx
+from moviepy.editor import (
+    AudioFileClip,
+    CompositeAudioClip,
+    concatenate_videoclips
+)
+
+
 def create_comparison_fomo_video(
-    ticker1, ticker2, music_path, output_filename="fomo_comparison.mp4"
+        ticker1, ticker2, music_path, output_filename="fomo_comparison.mp4"
 ):
-  duration = 60
-  fps = 15  # ⚡ 15 FPS מספק זרימה חלקה לגרפים ומקצר את זמן הרינדור ב-40%!
-  investment = 1000
+    duration = 60
+    fps = 15
+    investment = random.choice([100, 200, 500, 1000])
 
-  v1, v2, start_year = get_comparison_data(ticker1, ticker2, investment)
-  if v1 is None:
-    print("❌ Could not generate video due to data fetch error.", flush=True)
-    return
+    v1, v2, start_year = get_comparison_data(ticker1, ticker2, investment)
+    if v1 is None:
+        print("❌ Could not generate video due to data fetch error.", flush=True)
+        return
 
-  print(f"🎬 Generating Video For {ticker1} vs {ticker2}", flush=True)
+    print(f"🎬 Generating Video For {ticker1} vs {ticker2}", flush=True)
 
-  # 1. יצירת קליפ הגרף
-  chart_clip = make_animated_comparison_chart(
-      v1, v2, ticker1, ticker2, start_year, investment, duration
-  )
+    # 🟢 4. צבעים אקראיים וייחודיים מתוך פלטה
+    palette = ['#00E676', '#FF1744', '#29B6F6', '#FFA000', '#E040FB', '#1DE9B6', '#FFEA00']
+    c1, c2 = random.sample(palette, 2)
 
-  # 2. רקע מוחשך
-  background = (
-      VideoFileClip("trading_floor_loop.mp4")
-      .loop(duration=duration)
-      .without_audio()
-  )
-  background = background.resize(height=1920).crop(
-      x_center=background.w / 2, width=1080
-  )
-  background = background.fx(vfx.colorx, 0.1)
-
-  # 3. הרכבה
-  final_video = CompositeVideoClip(
-      [background, chart_clip.set_position("center")], size=(1080, 1920)
-  ).set_duration(duration)
-
-  # 4. אודיו
-  audio_tracks = []
-  if final_video.audio is not None:
-    existing_audio = final_video.audio
-    if existing_audio.duration:
-      existing_audio = existing_audio.subclip(
-          0, min(existing_audio.duration, duration)
-      )
-    audio_tracks.append(existing_audio)
-
-  if music_path and os.path.exists(music_path):
-    bg_music = AudioFileClip(music_path)
-    if bg_music.duration < duration:
-      bg_music = bg_music.fx(vfx.audio_loop, duration=duration)
-
-    bg_music = (
-        bg_music.subclip(0, duration)
-        .fx(vfx.volumex, 0.15)
-        .fx(vfx.audio_fadeout, 2)
+    # 🟢 2. יצירת הגרף (הוא עצמו משמש כוידאו, אין צורך ב-Trading floor ברקע)
+    chart_clip = make_animated_comparison_chart(
+        v1, v2, ticker1, ticker2, start_year, investment, duration, c1, c2
     )
-    audio_tracks.append(bg_music)
 
-  if audio_tracks:
-    final_audio = CompositeAudioClip(audio_tracks).set_duration(duration)
-    final_video = final_video.set_audio(final_audio)
+    # 🟢 3. הקפאת הפריים האחרון לשנייה נוספת
+    freeze_frame = chart_clip.to_ImageClip(t=duration - 0.1).set_duration(1.0)
+    final_video = concatenate_videoclips([chart_clip, freeze_frame])
 
-  print(f"🎬 Rendering final video: {output_filename}...", flush=True)
+    # האורך הכולל עכשיו הוא 31 שניות
+    total_duration = duration + 1.0
 
-  # ⚡ הרינדור הבטוח: ללא Deadlock ב-FFmpeg Pipe
-  final_video.write_videofile(
-      output_filename,
-      fps=fps,
-      codec="libx264",
-      audio_codec="aac",
-      temp_audiofile="temp-audio.m4a",
-      remove_temp=True,
-      threads=1,  # threads=1 מונע התנגשויות זיכרון ב-Streamlit Cloud
-      preset="ultrafast",
-      write_logfile=False,  # מונע כתיבת לוגים כבדים לדיסק
-  )
+    # 🟢 1. אודיו מתוקן (מבוסס על total_duration כדי שהמוזיקה תמשיך גם בשנייה הקפואה)
+    audio_tracks = []
+    if final_video.audio is not None:
+        existing_audio = final_video.audio
+        if existing_audio.duration:
+            existing_audio = existing_audio.subclip(
+                0, min(existing_audio.duration, total_duration)
+            )
+        audio_tracks.append(existing_audio)
 
-  # ניקוי משאבים בסיום
-  chart_clip.close()
-  background.close()
-  final_video.close()
+    if music_path and os.path.exists(music_path):
+        bg_music = AudioFileClip(music_path)
 
-  print("✅ Done!", flush=True)
-  return output_filename
+        # שימוש נכון ב-afx (Audio FX) במקום vfx
+        if bg_music.duration < total_duration:
+            bg_music = bg_music.fx(afx.audio_loop, duration=total_duration)
+
+        # שימוש בפונקציות המובנות של האודיו כדי למנוע השתקה
+        bg_music = (
+            bg_music.subclip(0, total_duration)
+            .volumex(0.15)
+            .audio_fadeout(2)
+        )
+        audio_tracks.append(bg_music)
+
+    if audio_tracks:
+        final_audio = CompositeAudioClip(audio_tracks).set_duration(total_duration)
+        final_video = final_video.set_audio(final_audio)
+
+    print(f"🎬 Rendering final video: {output_filename}...", flush=True)
+
+    final_video.write_videofile(
+        output_filename,
+        fps=fps,
+        codec="libx264",
+        audio_codec="aac",
+        temp_audiofile="temp-audio.m4a",
+        remove_temp=True,
+        threads=1,
+        preset="ultrafast",
+        write_logfile=False,
+    )
+
+    # ניקוי
+    chart_clip.close()
+    final_video.close()
+
+    print("✅ Done!", flush=True)
 
 
 def run_generator(test_mode=False):
@@ -351,4 +355,18 @@ def run_generator(test_mode=False):
     if not os.path.exists(MUSIC_PATH):
         MUSIC_PATH = ""
 
-    return create_comparison_fomo_video("NVDA", "TSLA", MUSIC_PATH, "nvda_vs_tsla.mp4")
+    TICKERS = [
+        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",  # Magnificent 7
+        "AMD", "PLTR", "SMCI", "ARM", "COIN", "MSTR", "INTC",  # תנודתיות וקריפטו/AI
+        "NFLX", "DIS", "BABA", "SPOT", "UBER", "ABNB",  # צרכנות וטכנולוגיה
+        "BRK-B", "JPM", "V", "WMT", "LLY", "COST", "HD",  # חברות ענק יציבות
+        "IVV", "QQQ", "GRNY"  # תעודות סל / מדדים
+    ]
+
+    # בחירה אקראית של 2 טיקרים שונים
+    ticker1, ticker2 = random.sample(TICKERS, 2)
+
+    # יצירת שם קובץ דינמי
+    output_filename = f"{ticker1}_vs_{ticker2}.mp4"
+    create_comparison_fomo_video(ticker1, ticker2, MUSIC_PATH, output_filename)
+    return output_filename
