@@ -116,7 +116,6 @@ def make_animated_comparison_chart(
     size=(1080, 1920),
 ):
   n_original = len(v1)
-
   n_dense = 1000
   x_orig = np.arange(n_original)
   x_dense = np.linspace(0, n_original - 1, n_dense)
@@ -127,13 +126,9 @@ def make_animated_comparison_chart(
   y1_dense = interp_1(x_dense)
   y2_dense = interp_2(x_dense)
 
-  y_max = max(max(y1_dense), max(y2_dense))
-  y_min = 90
-
   fig, ax = plt.subplots(figsize=(size[0] / 100, size[1] / 100), dpi=100)
   canvas = FigureCanvasAgg(fig)
 
-  # 🟢 אופטימיזציה 1: הגדרת רקע וכותרת סטטית פעם אחת בלבד בחוץ!
   fig.patch.set_facecolor(BG_COLOR)
   header_text = (
       f"IF YOU INVESTED ${investment}\nIN {ticker1} vs {ticker2} IN"
@@ -156,25 +151,51 @@ def make_animated_comparison_chart(
       ),
   )
 
+  # 🟢 אובייקט הטקסט של התאריך (מוגדר פעם אחת בחוץ כדי למנוע זליגת זיכרון)
+  date_text_obj = fig.text(
+      0.5,
+      0.82,  # מיקום קצת מתחת לכותרת הראשית
+      "",
+      color="white",
+      fontsize=24,
+      fontweight="bold",
+      ha="center",
+      va="top",
+  )
+
+  # חילוץ התאריכים (בהנחה ש-v1 הוא Pandas Series מ-yfinance)
+  try:
+    dates = v1.index.strftime("%b %Y")  # פורמט לדוגמה: Jan 2020
+  except AttributeError:
+    # גיבוי למקרה שאין אינדקס תאריכים
+    dates = [str(start_year)] * n_original
+
   def render_rgba_frame(t):
     ax.clear()
 
     ax.set_facecolor(BG_COLOR)
     ax.grid(True, color=GRID_COLOR, linestyle="--", linewidth=1, alpha=0.5)
 
-    idx = int((t / duration) * (n_dense - 1))
-    idx = max(1, min(idx, n_dense - 1))
+    # 1. חישוב מיקום נוכחי וקצב ההתקדמות (מ-0 עד 1)
+    progress = min(t / duration, 1.0)
+    idx = int(progress * (n_dense - 1))
+    idx = max(1, idx)
+
+    # 2. עדכון התאריך על המסך לפי המיקום המקורי
+    idx_orig = int(progress * (n_original - 1))
+    idx_orig = min(max(0, idx_orig), n_original - 1)
+    date_text_obj.set_text(dates[idx_orig])
 
     sub_x = x_dense[: idx + 1]
     sub_y1 = y1_dense[: idx + 1]
     sub_y2 = y2_dense[: idx + 1]
 
-    # ציור הקווים וההצללות
+    # ציור הקווים
     ax.plot(sub_x, sub_y1, color=COLOR_1, linewidth=6, label=ticker1)
-    ax.fill_between(sub_x, sub_y1, y_min, color=COLOR_1, alpha=0.1)
+    ax.fill_between(sub_x, sub_y1, min(sub_y1), color=COLOR_1, alpha=0.1)
 
     ax.plot(sub_x, sub_y2, color=COLOR_2, linewidth=6, label=ticker2)
-    ax.fill_between(sub_x, sub_y2, y_min, color=COLOR_2, alpha=0.1)
+    ax.fill_between(sub_x, sub_y2, min(sub_y2), color=COLOR_2, alpha=0.1)
 
     # נקודות קצה
     ax.plot(sub_x[-1], sub_y1[-1], marker="o", markersize=12, color=COLOR_1)
@@ -183,10 +204,19 @@ def make_animated_comparison_chart(
     v1_curr = sub_y1[-1]
     v2_curr = sub_y2[-1]
 
-    # תוויות מחיר דינמיות
+    # 3. 🟢 סקייל Y דינמי לחלוטין - מבוסס על הערכים הנוכחיים בלבד
+    current_y_max = max(np.max(sub_y1), np.max(sub_y2))
+    current_y_min = min(np.min(sub_y1), np.min(sub_y2))
+    ax.set_ylim(current_y_min * 0.85, current_y_max * 1.35)
+
+    # 4. 🟢 סקייל X דינמי - הגרף תמיד ייפרס על פני כל המסך
+    x_max = max(10, sub_x[-1])
+    ax.set_xlim(-(x_max * 0.05), x_max + (x_max * 0.15))
+
+    # תוויות מחיר
     ax.text(
         sub_x[-1],
-        v1_curr + (y_max * 0.03),
+        v1_curr + (current_y_max * 0.03),
         f"{ticker1}\n${v1_curr:,.0f}",
         color=COLOR_1,
         fontsize=24,
@@ -203,7 +233,7 @@ def make_animated_comparison_chart(
 
     ax.text(
         sub_x[-1],
-        v2_curr + (y_max * 0.03),
+        v2_curr + (current_y_max * 0.03),
         f"{ticker2}\n${v2_curr:,.0f}",
         color=COLOR_2,
         fontsize=24,
@@ -218,9 +248,6 @@ def make_animated_comparison_chart(
         ),
     )
 
-    ax.set_xlim(-(n_dense * 0.05), n_dense + (n_dense * 0.1))
-    ax.set_ylim(y_min, y_max * 1.35)
-
     ax.tick_params(axis="both", colors="white", labelsize=18)
     ax.set_xticks([])
     for spine in ax.spines.values():
@@ -230,15 +257,15 @@ def make_animated_comparison_chart(
     return np.asarray(canvas.buffer_rgba())[:, :, :3]
 
   chart_clip = VideoClip(render_rgba_frame, duration=duration)
-  plt.close(fig)
+  plt.close(fig)  # ניקוי מהותי למניעת תקיעות RAM
   return chart_clip
 
 def create_comparison_fomo_video(
     ticker1, ticker2, music_path, output_filename="fomo_comparison.mp4"
 ):
-  duration = 30
+  duration = 60
   fps = 15  # ⚡ 15 FPS מספק זרימה חלקה לגרפים ומקצר את זמן הרינדור ב-40%!
-  investment = 100
+  investment = 1000
 
   v1, v2, start_year = get_comparison_data(ticker1, ticker2, investment)
   if v1 is None:
