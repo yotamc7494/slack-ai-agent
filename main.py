@@ -69,6 +69,46 @@ def mark_stock_as_used(ticker_symbol):
         json.dump({"date": today_str, "used": list(used_stocks)}, f)
 
 
+def extract_news_context(news_data, ticker_symbol="", max_articles=3):
+    """
+    מחלצת כותרות ותקצירים מתוך מבנה החדשות החדש של yfinance.
+    """
+    if not news_data or not isinstance(news_data, list):
+        return "No recent breaking news available."
+
+    formatted_articles = []
+    count = 0
+
+    for item in news_data:
+        if count >= max_articles:
+            break
+
+        # המידע של הכתבה עטוף בתוך 'content'
+        content = item.get('content', {})
+        if not content:
+            continue
+
+        title = content.get('title', '').strip()
+        summary = content.get('summary', '').strip()
+        provider = content.get('provider', {}).get('displayName', 'Market News')
+
+        if not title:
+            continue
+
+        # אם העברנו סימול מניה (כמו NVDA), נעדיף כתבות שמוזכרות בהן המניה
+        # (אופציונלי - אם רוצים לסנן כתבות לא קשורות)
+        article_text = f"• [{provider}] {title}"
+        if summary:
+            article_text += f"\n  Context: {summary}"
+
+        formatted_articles.append(article_text)
+        count += 1
+
+    if not formatted_articles:
+        return "No breaking news found for this ticker today."
+
+    return "\n\n".join(formatted_articles)
+
 def get_top_moving_stock(test=False):
     used_today = get_used_stocks_today()
     print(f"📋 Stocks already used today ({date.today()}): {list(used_today) if used_today else 'None'}")
@@ -94,8 +134,8 @@ def get_top_moving_stock(test=False):
             pct_change = abs((curr_price - prev_close) / prev_close) * 100
 
             if pct_change > max_change:
-                news = ticker.news
-                "\n".join([f"- {item['title']}" for item in news[:3]])
+
+                news = extract_news_context(ticker.news)
                 max_change = pct_change
                 best_ticker = ticker_symbol
                 raw_pct = ((curr_price - prev_close) / prev_close) * 100
@@ -106,8 +146,8 @@ def get_top_moving_stock(test=False):
                     "history": hist['Close'],
                     "news": news
                 }
-        except Exception:
-            continue
+        except Exception as e:
+            print(f"Error While Fetching Symbol: {e}")
 
     if not top_data and used_today:
         print("⚠️ All stocks in TICKERS_TO_CHECK were already used today! Resetting selection...")
@@ -117,7 +157,6 @@ def get_top_moving_stock(test=False):
         if not test:
             mark_stock_as_used(best_ticker)
         print(f"🎯 Selected: {best_ticker} with {top_data['change_pct']}% change")
-
     return top_data
 
 
@@ -318,27 +357,59 @@ def make_animated_chart_video(stock_data, duration, size=(1080, 1920)):
     prices = stock_data['history'].values
     n_points = len(prices)
 
+    # התחלה מ-5 נקודות גלויות (או פחות אם אין מספיק)
+    start_points = min(5, n_points)
+
     is_positive = stock_data['change_pct'] >= 0
     line_color = "#00E676" if is_positive else "#FF1744"
     bg_color = "#0B0E14"
 
     fig, ax = plt.subplots(figsize=(10.8, 19.2), dpi=100)
-    canvas = FigureCanvasAgg(fig)  # כפיית הקנווס של Agg באופן ישיר!
+    canvas = FigureCanvasAgg(fig)
+
+    # מרווח בטיחות לציר ה-Y כדי שהטקסט והנקודה לא ייחתכו למעלה/למטה
+    y_min, y_max = min(prices), max(prices)
+    y_padding = (y_max - y_min) * 0.15 if y_max != y_min else 1.0
 
     def make_frame(t):
         ax.clear()
         fig.patch.set_facecolor(bg_color)
         ax.set_facecolor(bg_color)
 
-        idx = int((t / duration) * n_points)
-        idx = max(2, min(idx, n_points))
-        sub_prices = prices[:idx]
+        # חישוב אינדקס הנקודה הנוכחית (החל מ-start_points)
+        idx = int(start_points + (t / duration) * (n_points - start_points))
+        idx = min(max(start_points, idx), n_points)
 
-        ax.plot(sub_prices, color=line_color, linewidth=6)
-        ax.fill_between(range(len(sub_prices)), sub_prices, min(prices), color=line_color, alpha=0.18)
+        sub_prices = prices[:idx]
+        curr_price = sub_prices[-1]
+
+        # 1. ציור הקו והשטח המוצלל
+        ax.plot(sub_prices, color=line_color, linewidth=7)
+        ax.fill_between(range(len(sub_prices)), sub_prices, y_min - y_padding, color=line_color, alpha=0.15)
+
+        # 2. ציור עיגול/נקודה בולטת בראש הקו המתקדם
+        curr_x = len(sub_prices) - 1
+        ax.plot(curr_x, curr_price, marker='o', markersize=14, color=line_color)
+
+        # 3. תווית מחיר צפה ליד הנקודה
+        ax.text(
+            curr_x,
+            curr_price + (y_padding * 0.25),
+            f" ${curr_price:.2f} ",
+            color="white",
+            fontsize=24,
+            fontweight="bold",
+            ha="center",
+            va="bottom",
+            bbox=dict(boxstyle="round,pad=0.4", facecolor=line_color, edgecolor="none", alpha=0.9)
+        )
+
+        # קיבוע הצירים כדי להבטיח אנומציה חלקה ללא קפיצות
+        ax.set_xlim(-1, n_points + 1)
+        ax.set_ylim(y_min - y_padding, y_max + y_padding)
 
         ax.axis("off")
-        canvas.draw()  # ציור דרך ה-canvas המפורש
+        canvas.draw()
 
         rgba = np.asarray(canvas.buffer_rgba())
         return rgba[:, :, :3]
