@@ -3,13 +3,13 @@ name: Trigger Streamlit Webhook 3x Daily
 on:
   schedule:
     # 1. 15:14 שעון ישראל (12:14 UTC) - עוקף את העומס של 12:00!
-    - cron: '14 12 * * 1-5'
+    - cron: '14 11 * * 1-5'
     
     # 2. 19:33 שעון ישראל (16:33 UTC)
-    - cron: '33 16 * * 1-5'
+    - cron: '33 15 * * 1-6'
     
     # 3. 23:22 שעון ישראל (20:22 UTC)
-    - cron: '22 20 * * 1-5'
+    - cron: '21 19 * * 1-6'
 
   workflow_dispatch:
 
