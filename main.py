@@ -11,6 +11,7 @@ matplotlib.use('Agg')  # חובה להופיע לפני היבוא של pyplot!
 import matplotlib.pyplot as plt
 import yfinance as yf
 import edge_tts
+import torch
 import whisper
 import shutil
 from dotenv import load_dotenv
@@ -297,8 +298,15 @@ async def create_tts_async(text, audio_file="voiceover.mp3"):
 
 def get_exact_captions_with_whisper(audio_file, words_per_caption=2):
     print("🎧 Aligning captions directly from audio stream with Whisper...")
-    model = whisper.load_model("tiny.en")
-    result = model.transcribe(audio_file, word_timestamps=True)
+    torch.set_num_threads(1)
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+
+    # 🟢 2. טעינה מפורשת ל-CPU
+    model = whisper.load_model("tiny.en", device="cpu")
+
+    # 🟢 3. ביטול FP16 (הגורם המרכזי לקפיאה בעבודה על CPU!)
+    result = model.transcribe(audio_file, word_timestamps=True, fp16=False)
 
     word_events = []
     for segment in result.get("segments", []):
