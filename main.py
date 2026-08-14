@@ -265,7 +265,7 @@ def generate_script_and_titles_with_ai(stock_data):
            - Focus on big market forces, macro trends, and major institutions (e.g., Wall Street, JPMorgan, Big Tech, The Fed) rather than obscure individuals or random executives.
            - Deliver dense, high-value financial data in plain, exciting terms.
         4. SUBTLE & NATURAL ENDING:
-           - End with a quick, effortless question that sparks organic debate in the comments. Avoid pushy or needy Calls to Action.
+           - End with a quick, effortless question that sparks organic debate in the comments, or Suggest they would turn on notifications to never miss updates.
         5. STRICT OUTPUT FORMAT:
            - Return ONLY a valid JSON object with the following 5 fields:
         {{
