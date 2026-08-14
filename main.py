@@ -120,11 +120,12 @@ def extract_news_context(news_data, ticker_symbol="", max_articles=3):
 
     return "\n\n".join(formatted_articles)
 
+
 def get_top_moving_stock(test=False):
     used_today = get_used_stocks_today()
     print(f"📋 Stocks already used today ({date.today()}): {list(used_today) if used_today else 'None'}")
 
-    best_ticker = None
+    best_ticker_obj = None
     max_change = -1
     top_data = None
 
@@ -136,29 +137,45 @@ def get_top_moving_stock(test=False):
 
         try:
             ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period="5d", interval="15m")
+
+            # 1. משיכת דאטה תוך-יומי של היום בלבד (אינטרוול 5 דקות לגרף חלק)
+            hist = ticker.history(period="1d", interval="5m")
+
+            # גיבוי: אם השוק סגור/בסופ"ש ומשכנו דאטה ריק ב-1d
+            if hist.empty or len(hist) < 2:
+                hist = ticker.history(period="2d", interval="15m")
+                if not hist.empty:
+                    latest_date = hist.index[-1].date()
+                    hist = hist[hist.index.date == latest_date]
+
             if hist.empty:
                 continue
 
-            prev_close = hist['Close'].iloc[-10]
             curr_price = hist['Close'].iloc[-1]
-            pct_change = abs((curr_price - prev_close) / prev_close) * 100
+
+            # 2. מציאת מחיר הסגירה הרשמי של אתמול (Previous Close)
+            prev_close = ticker.fast_info.get('regular_market_previous_close')
+            if not prev_close or prev_close == 0:
+                prev_close = hist['Open'].iloc[0]  # גיבוי: מחיר הפתיחה של הבוקר
+
+            # 3. חישוב אחוז השינוי היומי המדויק
+            raw_pct = ((curr_price - prev_close) / prev_close) * 100
+            pct_change = abs(raw_pct)
 
             if pct_change > max_change:
-
                 news = extract_news_context(ticker.news)
                 max_change = pct_change
-                best_ticker = ticker
-                raw_pct = ((curr_price - prev_close) / prev_close) * 100
+                best_ticker_obj = ticker  # שומרים את ה-Ticker של המניה המובילה
+
                 top_data = {
                     "symbol": ticker_symbol,
                     "current_price": round(curr_price, 2),
                     "change_pct": round(raw_pct, 2),
-                    "history": hist['Close'],
+                    "history": hist['Close'],  # רק המחשבון/גרף של היום!
                     "news": news
                 }
         except Exception as e:
-            print(f"Error While Fetching Symbol: {e}")
+            print(f"Error While Fetching Symbol {ticker_symbol}: {e}")
 
     if not top_data and used_today:
         print("⚠️ All stocks in TICKERS_TO_CHECK were already used today! Resetting selection...")
@@ -168,7 +185,8 @@ def get_top_moving_stock(test=False):
         if not test:
             mark_stock_as_used(top_data['symbol'])
         print(f"🎯 Selected: {top_data['symbol']} with {top_data['change_pct']}% change")
-    return top_data, ticker
+
+    return top_data, best_ticker_obj
 
 
 def get_top_moving_stock_fallback():
@@ -208,7 +226,7 @@ def get_market_metrics(stock, depth=5):
         if depth > 0:
             return get_market_metrics(stock,depth=depth-1)
         print(f"⚠️ Error fetching market metrics: {e}")
-        return {"mcap": "N/A", "sp500": "N/A", "btc": "N/A"}
+        return None
 
 # -----------------------------------------------------------------------------
 # 2. יצירת תסריט + כותרות ב-Gemini Flash Lite
@@ -542,7 +560,6 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
 # -----------------------------------------------------------------------------
 def render_final_video():
     stock_data, ticker = get_top_moving_stock()
-    clean_symbol = stock_data['symbol']
     market_metrics = get_market_metrics(ticker)
     print("🤖 Generating script with gemini-flash-lite-latest...")
     script_data = generate_script_and_titles_with_ai(stock_data)
@@ -581,12 +598,16 @@ def render_final_video():
 
     print("📊 Rendering Animated Stock Chart...")
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
+    bg_video = VideoFileClip("trading_floor_loop.mp4")
+    bg_video = bg_video.loop(duration=duration)
+    bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)
+    bg_video = bg_video.fl_image(lambda frame: (frame * 0.22).astype('uint8'))
 
     print("🎬 Compositing Video with Captions...")
-    all_layers = [chart_clip, overlay_clip] + caption_clips
+    all_layers = [bg_video, chart_clip, overlay_clip] + caption_clips
     final_video = CompositeVideoClip(all_layers).set_audio(audio_clip).set_duration(duration)
 
-
+    clean_symbol = stock_data['symbol']
     output_filename = f"STOCK_{clean_symbol}_{int(stock_data['change_pct'])}pct.mp4"
 
     final_video.write_videofile(
