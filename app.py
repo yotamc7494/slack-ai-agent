@@ -20,9 +20,9 @@ if "WEBHOOK_TOKEN" in st.query_params:
     sys.stdout.reconfigure(line_buffering=True)
     print("⚡ Webhook triggered from GitHub Actions!", flush=True)
     # הרצת היצירה
-    filename = render_final_video()
-    st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-    print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
+    #filename = render_final_video()
+    #st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+    #print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
     # עצירת המשך רינדור הממשק
     st.stop()
   else:
