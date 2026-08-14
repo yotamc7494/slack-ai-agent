@@ -1,17 +1,29 @@
-name: Trigger Streamlit Webhook 3x Daily
+name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 15:14 שעון ישראל (12:14 UTC) - עוקף את העומס של 12:00!
+    # 1. 08:00 שעון ישראל (05:00 UTC) - סרטון השוואה (vs_video)
+    - cron: '0 5 * * *'
+
+    # 2. 15:14 שעון ישראל (12:14 UTC) - עדכון (update_video)
     - cron: '14 11 * * 1-5'
     
-    # 2. 19:33 שעון ישראל (16:33 UTC)
+    # 3. 19:33 שעון ישראל (16:33 UTC) - עדכון (update_video)
     - cron: '33 15 * * 1-6'
     
-    # 3. 23:22 שעון ישראל (20:22 UTC)
+    # 4. 23:22 שעון ישראל (20:22 UTC) - עדכון (update_video)
     - cron: '21 19 * * 1-6'
 
   workflow_dispatch:
+    inputs:
+      video_type:
+        description: 'בחר סוג סרטון להרצה ידנית'
+        required: true
+        default: 'vs_video'
+        type: choice
+        options:
+          - vs_video
+          - update_video
 
 jobs:
   ping-streamlit:
@@ -31,17 +43,31 @@ jobs:
       - name: Trigger Streamlit App
         run: |
           python -c "
-          from playwright.sync_api import sync_playwright
+          import os
           import time
+          from datetime import datetime, timezone
+          from playwright.sync_api import sync_playwright
 
-          url = 'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}'
-          print(f'🚀 Opening {url} in Headless Chrome...')
+          # 1. בדיקה אם יש אינפוט מהפעלה ידנית
+          manual_input = '${{ github.event.inputs.video_type }}'
+
+          if manual_input:
+              video_type = manual_input
+          else:
+              # בדיקה לפי שעת UTC (שעה 05:00 UTC היא 08:00 בבוקר בישראל)
+              utc_hour = datetime.now(timezone.utc).hour
+              if 4 <= utc_hour <= 6:
+                  video_type = 'vs_video'
+              else:
+                  video_type = 'update_video'
+
+          url = f'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}&video_type={video_type}'
+          print(f'🚀 Opening {url} (Type: {video_type}) in Headless Chrome...')
 
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page()
               page.goto(url)
-              # המתנה של 15 שניות כדי לוודא ש-Streamlit יצר את חיבור ה-WebSocket והתחיל את הרינדור
               time.sleep(15)
-              print('✅ Page triggered successfully!')
+              print(f'✅ Page triggered successfully for {video_type}!')
           "
