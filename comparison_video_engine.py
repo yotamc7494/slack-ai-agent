@@ -403,7 +403,8 @@ def run_generator(test_mode=False):
         MUSIC_PATH = ""
 
     # בחירה אקראית של 2 טיקרים שונים
-    ticker1, ticker2 = random.sample(TICKERS_TO_CHECK, 2)
+    filtered_list = TICKERS_TO_CHECK - ["PLTR", "COIN", "ARM"]
+    ticker1, ticker2 = random.sample(filtered_list, 2)
 
     # יצירת שם קובץ דינמי
     output_filename = f"{ticker1}_vs_{ticker2}.mp4"
