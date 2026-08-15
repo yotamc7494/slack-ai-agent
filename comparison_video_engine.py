@@ -271,7 +271,7 @@ def make_animated_comparison_chart(
 def create_comparison_fomo_video(
         ticker1, ticker2, music_path, investment,output_filename="fomo_comparison.mp4"
 ):
-    duration = 30
+    duration = random.choice[26,27,28,29,30,31]
     fps = 15
 
 
