@@ -42,15 +42,9 @@ if not hasattr(PIL.Image, 'ANTIALIAS'):
     PIL.Image.ANTIALIAS = PIL.Image.Resampling.LANCZOS
 
 TICKERS_TO_CHECK = [
-    # 🚀 AI, שבבים וטכנולוגיה ענקית (Mega-Tech & AI)
-    "NVDA", "TSLA", "AAPL", "AMD", "PLTR", "AMZN", "MSFT", "GOOGL",
-    "META", "NFLX", "AVGO", "TSM", "SMCI", "INTC", "ORCL", "CRM", "QCOM", "MU",
-
-    # 🪙 קריפטו, פינטק ומניות תנודתיות (Crypto & FinTech)
-    "MSTR", "COIN", "HOOD", "SOFI", "PYPL",
-
-    # ⚡ צמיחה, רכבים חשמליים וטרנדים (Growth & Retail Favorites)
-    "RIVN", "NIO", "BABA", "UBER", "RBLX", "SHOP", "LLY"
+    "NVDA", "AVGO", "AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "META",
+    "AMD", "PLTR", "SMCI", "ARM", "NFLX", "COIN", "MSTR", "INTC",
+    "BRK-B", "JPM", "LLY", "QQQ", "SPY"
 ]
 USED_STOCKS_FILE = "used_stocks.json"
 
@@ -248,32 +242,43 @@ def generate_script_and_titles_with_ai(stock_data):
     client = genai.Client(api_key=api_key)
 
     prompt = f"""
-        You are a high-energy financial content creator for TikTok, YouTube Shorts, and Instagram Reels.
-        Create a fast-paced 60-second video script about this stock movement:
+        You are a high-energy financial content creator and YouTube SEO expert for TikTok, YouTube Shorts, and Instagram Reels.
+        Create a fast-paced 60-second video script and SEO-optimized metadata about this stock movement:
         - Symbol: {stock_data['symbol']}
+        - Company Name: {stock_data.get('company_name', stock_data['symbol'])}
         - Current Price: ${stock_data['current_price']}
         - Today's Change: {stock_data['change_pct']}%
         - News Context: {stock_data['news']}
-        
-        CRITICAL SCRIPTING RULES:
-        1. SCROLL-STOPPING HOOK: Start instantly with a high-stakes, dramatic statement in the first 2 seconds.
-        2. OPTIMIZED FOR TTS (RETENTION):
+
+        CRITICAL SCRIPTING & SEO RULES:
+        1. YOUTUBE SEARCH SEO OPTIMIZATION (MAXIMIZE SEARCH TRAFFIC):
+           - "youtube_title" MUST explicitly contain BOTH the Ticker Symbol AND the Full Company Name (e.g., "AVGO Broadcom Shocking Drop! Buy Or Pass? 🚀") so it ranks high in YouTube Search.
+           - "description" MUST naturally incorporate both the ticker and company name alongside key financial terms.
+           - "tags" MUST include the ticker, company name, specific stock tags (e.g., AVGO, Broadcom, BroadcomStock), and general investing tags.
+
+        2. SCROLL-STOPPING HOOK:
+           - Start instantly with a high-stakes, dramatic statement in the first 2 seconds.
+
+        3. OPTIMIZED FOR TTS (RETENTION):
            - Write purely in natural, spoken English.
            - ABSOLUTELY NO dashes (-), ellipses (...), semicolons (;), or complex formatting that causes Text-To-Speech (TTS) engines to pause awkwardly.
            - Keep punctuation strictly to simple periods and commas for a relentless, fast pace.
-        3. INSTITUTIONAL STORYTELLING (NO BORING NAMES):
+
+        4. INSTITUTIONAL STORYTELLING (NO BORING NAMES):
            - Focus on big market forces, macro trends, and major institutions (e.g., Wall Street, JPMorgan, Big Tech, The Fed) rather than obscure individuals or random executives.
            - Deliver dense, high-value financial data in plain, exciting terms.
-        4. SUBTLE & NATURAL ENDING:
-           - End with a quick, effortless question that sparks organic debate in the comments, or Suggest they would turn on notifications to never miss updates.
-        5. STRICT OUTPUT FORMAT:
+
+        5. SUBTLE & NATURAL ENDING:
+           - End with a quick, effortless question that sparks organic debate in the comments, or suggest they turn on notifications / subscribe to never miss daily updates.
+
+        6. STRICT OUTPUT FORMAT:
            - Return ONLY a valid JSON object with the following 5 fields:
         {{
-          "youtube_title": "High-CTR title with emojis (e.g., NVDA Unexpected Move! Buy Or Pass? 🚀)",
-          "overlay_headline": "2 to 4 WORDS IN ALL CAPS FOR ON-SCREEN OVERLAY (e.g., NVDA HUGE CRASH!)",
+          "youtube_title": "High-CTR & Search-Optimized title with TICKER + COMPANY NAME + Emojis",
+          "overlay_headline": "2 to 4 WORDS IN ALL CAPS FOR ON-SCREEN OVERLAY (e.g., AVGO HUGE CRASH!)",
           "voiceover_text": "The full fluid script for narration without TTS glitches",
-          "description": "A short, punchy summary for the short video",
-          "tags": "5-7 relevant tags separated by commas (e.g., NVDA,Stocks,Investing,Trading)"
+          "description": "Short SEO-rich summary incorporating Ticker and Company Name, ending with a call to debate or turn on notifications",
+          "tags": "5-7 relevant tags separated by commas including Ticker and Full Company Name"
         }}
         """
 
