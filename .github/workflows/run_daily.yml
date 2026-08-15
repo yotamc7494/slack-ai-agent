@@ -2,8 +2,8 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 08:00 שעון ישראל (05:00 UTC) - סרטון השוואה (vs_video)
-    - cron: '0 5 * * *'
+    # סרטון השוואה (vs_video) - 01:30 שעון ישראל (22:30 UTC)
+    - cron: '30 22 * * *'
 
     # 2. 15:14 שעון ישראל (12:14 UTC) - עדכון (update_video)
     - cron: '14 11 * * 1-5'
@@ -56,7 +56,7 @@ jobs:
           else:
               # בדיקה לפי שעת UTC (שעה 05:00 UTC היא 08:00 בבוקר בישראל)
               utc_hour = datetime.now(timezone.utc).hour
-              if 4 <= utc_hour <= 6:
+              if 21 <= utc_hour <= 23:
                   video_type = 'vs_video'
               else:
                   video_type = 'update_video'
