@@ -402,11 +402,43 @@ def run_generator(test_mode=False):
         MUSIC_PATH = ""
 
     TICKERS = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",  # Magnificent 7
-        "AMD", "PLTR", "SMCI", "ARM", "COIN", "MSTR", "INTC",  # תנודתיות וקריפטו/AI
-        "NFLX", "DIS", "BABA", "SPOT", "UBER", "ABNB",  # צרכנות וטכנולוגיה
-        "BRK-B", "JPM", "V", "WMT", "LLY", "COST", "HD",  # חברות ענק יציבות
-        "VOO", "QQQ", "GRNY"  # תעודות סל / מדדים
+        # טכנולוגיה ושבבים (הונפקו בשנות ה-80 וה-90)
+        "AAPL",  # Apple (1980)
+        "MSFT",  # Microsoft (1986)
+        "AMZN",  # Amazon (1997)
+        "NVDA",  # Nvidia (1999)
+        "AMD",  # AMD (1972)
+        "INTC",  # Intel (1971)
+        "CSCO",  # Cisco Systems (1990)
+        "ORCL",  # Oracle (1986)
+        "QCOM",  # Qualcomm (1991)
+        "ADBE",  # Adobe (1986)
+        "MU",  # Micron (1984)
+        "MSTR",  # MicroStrategy (1998)
+
+        # צרכנות, מותגים וקמעונאות מוכרים
+        "WMT",  # Walmart (1972)
+        "COST",  # Costco (1985)
+        "HD",  # Home Depot (1981)
+        "KO",  # Coca-Cola (1919)
+        "PEP",  # PepsiCo (1919)
+        "MCD",  # McDonald's (1965)
+        "NKE",  # Nike (1980)
+        "SBUX",  # Starbucks (1992)
+        "DIS",  # Disney (1957)
+
+        # פיננסים, בריאות ותעשייה
+        "BRK-B",  # Berkshire Hathaway Class B (1996)
+        "JPM",  # JPMorgan Chase (לפני 2000)
+        "LLY",  # Eli Lilly (1952)
+        "JNJ",  # Johnson & Johnson (1944)
+        "PFE",  # Pfizer (1942)
+        "XOM",  # ExxonMobil (לפני 2000)
+        "UNH",  # UnitedHealth (1984)
+
+        # מדדים ותעודות סל שהושקו לפני 2000
+        "SPY",  # SPDR S&P 500 ETF (הושקה ב-1993, החליפה את VOO שהושקה ב-2010)
+        "QQQ"  # Invesco QQQ (הושקה ב מרץ 1999)
     ]
 
     # בחירה אקראית של 2 טיקרים שונים
