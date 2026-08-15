@@ -20,6 +20,7 @@ import json
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+from main import TICKERS_TO_CHECK
 load_dotenv()
 
 # --- הגדרות עיצוב ---
@@ -401,48 +402,8 @@ def run_generator(test_mode=False):
     if not os.path.exists(MUSIC_PATH):
         MUSIC_PATH = ""
 
-    TICKERS = [
-        # טכנולוגיה ושבבים (הונפקו בשנות ה-80 וה-90)
-        "AAPL",  # Apple (1980)
-        "MSFT",  # Microsoft (1986)
-        "AMZN",  # Amazon (1997)
-        "NVDA",  # Nvidia (1999)
-        "AMD",  # AMD (1972)
-        "INTC",  # Intel (1971)
-        "CSCO",  # Cisco Systems (1990)
-        "ORCL",  # Oracle (1986)
-        "QCOM",  # Qualcomm (1991)
-        "ADBE",  # Adobe (1986)
-        "MU",  # Micron (1984)
-        "MSTR",  # MicroStrategy (1998)
-
-        # צרכנות, מותגים וקמעונאות מוכרים
-        "WMT",  # Walmart (1972)
-        "COST",  # Costco (1985)
-        "HD",  # Home Depot (1981)
-        "KO",  # Coca-Cola (1919)
-        "PEP",  # PepsiCo (1919)
-        "MCD",  # McDonald's (1965)
-        "NKE",  # Nike (1980)
-        "SBUX",  # Starbucks (1992)
-        "DIS",  # Disney (1957)
-
-        # פיננסים, בריאות ותעשייה
-        "BRK-B",  # Berkshire Hathaway Class B (1996)
-        "JPM",  # JPMorgan Chase (לפני 2000)
-        "LLY",  # Eli Lilly (1952)
-        "JNJ",  # Johnson & Johnson (1944)
-        "PFE",  # Pfizer (1942)
-        "XOM",  # ExxonMobil (לפני 2000)
-        "UNH",  # UnitedHealth (1984)
-
-        # מדדים ותעודות סל שהושקו לפני 2000
-        "SPY",  # SPDR S&P 500 ETF (הושקה ב-1993, החליפה את VOO שהושקה ב-2010)
-        "QQQ"  # Invesco QQQ (הושקה ב מרץ 1999)
-    ]
-
     # בחירה אקראית של 2 טיקרים שונים
-    ticker1, ticker2 = random.sample(TICKERS, 2)
+    ticker1, ticker2 = random.sample(TICKERS_TO_CHECK, 2)
 
     # יצירת שם קובץ דינמי
     output_filename = f"{ticker1}_vs_{ticker2}.mp4"
