@@ -2,17 +2,17 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # סרטון השוואה (vs_video) - 01:30 שעון ישראל (22:30 UTC)
+    # 1. 01:30 שעון ישראל (22:30 UTC) - תמיד VS כי השוק סגור
     - cron: '30 22 * * *'
 
-    # 2. 15:14 שעון ישראל (12:14 UTC) - עדכון (update_video)
-    - cron: '14 11 * * 1-5'
+    # 2. 15:14 שעון ישראל (11:14 UTC) - כל יום
+    - cron: '14 11 * * *'
     
-    # 3. 19:33 שעון ישראל (16:33 UTC) - עדכון (update_video)
-    - cron: '33 15 * * 1-6'
+    # 3. 19:33 שעון ישראל (15:33 UTC) - כל יום
+    - cron: '33 15 * * *'
     
-    # 4. 23:22 שעון ישראל (20:22 UTC) - עדכון (update_video)
-    - cron: '21 19 * * 1-6'
+    # 4. 23:22 שעון ישראל (19:21 UTC) - כל יום
+    - cron: '21 19 * * *'
 
   workflow_dispatch:
     inputs:
@@ -45,7 +45,8 @@ jobs:
           python -c "
           import os
           import time
-          from datetime import datetime, timezone
+          from datetime import datetime, time as dtime
+          from zoneinfo import ZoneInfo
           from playwright.sync_api import sync_playwright
 
           # 1. בדיקה אם יש אינפוט מהפעלה ידנית
@@ -54,9 +55,16 @@ jobs:
           if manual_input:
               video_type = manual_input
           else:
-              # בדיקה לפי שעת UTC (שעה 05:00 UTC היא 08:00 בבוקר בישראל)
-              utc_hour = datetime.now(timezone.utc).hour
-              if 21 <= utc_hour <= 23:
+              # 2. בדיקת סטטוס בורסה לפי שעון ניו יורק (Eastern Time)
+              now_et = datetime.now(ZoneInfo('America/New_York'))
+              
+              is_weekend = now_et.weekday() >= 5  # 5 = שבת, 6 = ראשון
+              is_trading_hours = dtime(9, 30) <= now_et.time() < dtime(16, 0)
+              
+              is_market_open = (not is_weekend) and is_trading_hours
+
+              # אם השוק סגור (כולל 01:30, סופי שבוע או לפני/אחרי המסחר) -> סרטון VS
+              if not is_market_open:
                   video_type = 'vs_video'
               else:
                   video_type = 'update_video'
