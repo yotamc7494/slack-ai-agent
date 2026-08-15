@@ -452,7 +452,8 @@ def run_generator(test_mode=False):
     if test_mode:
         return output_filename
     else:
-        upload_video(output_filename, upload_data["youtube_title"], upload_data["description"], upload_data['tags'])
-        return output_filename
+        if upload_data:
+            upload_video(output_filename, upload_data["youtube_title"], upload_data["description"], upload_data['tags'])
+            return output_filename
 
 
