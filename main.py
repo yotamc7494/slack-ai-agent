@@ -167,7 +167,8 @@ def get_top_moving_stock(test=False):
                     "current_price": round(curr_price, 2),
                     "change_pct": round(raw_pct, 2),
                     "history": hist['Close'],  # רק המחשבון/גרף של היום!
-                    "news": news
+                    "news": news,
+                    "company_name": ticker.info.get('longName') or ticker.info.get('shortName') or ticker_symbol
                 }
         except Exception as e:
             print(f"Error While Fetching Symbol {ticker_symbol}: {e}")
