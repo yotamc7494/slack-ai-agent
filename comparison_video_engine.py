@@ -396,7 +396,7 @@ def generate_fomo_metadata_and_header_with_ai(
 
 
 def run_generator(test_mode=False):
-    MUSIC_PATH = "comparison_music.mp3"
+    MUSIC_PATH = f"assets/suspense_music/{random.choice([1,2,3])}.mp3"
     # במידה ואין קובץ מוזיקה עדיין
     if not os.path.exists(MUSIC_PATH):
         MUSIC_PATH = ""
