@@ -246,7 +246,7 @@ def generate_script_and_titles_with_ai(stock_data):
         You are a high-energy financial content creator and YouTube SEO expert for TikTok, YouTube Shorts, and Instagram Reels.
         Create a fast-paced 60-second video script and SEO-optimized metadata about this stock movement:
         - Symbol: {stock_data['symbol']}
-        - Company Name: {stock_data.get('company_name', stock_data['symbol'])}
+        - Company Name: {stock_data['company_name']}
         - Current Price: ${stock_data['current_price']}
         - Today's Change: {stock_data['change_pct']}%
         - News Context: {stock_data['news']}
