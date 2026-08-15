@@ -20,8 +20,9 @@ import json
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
-from main import TICKERS_TO_CHECK
 load_dotenv()
+from main import TICKERS_TO_CHECK
+
 
 # --- הגדרות עיצוב ---
 BG_COLOR = "#131722"
@@ -271,7 +272,7 @@ def make_animated_comparison_chart(
 def create_comparison_fomo_video(
         ticker1, ticker2, music_path, investment,output_filename="fomo_comparison.mp4"
 ):
-    duration = random.choice[26,27,28,29,30,31]
+    duration = random.choice([26,27,28,29,30,31])
     fps = 15
 
 
