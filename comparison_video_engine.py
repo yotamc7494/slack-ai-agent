@@ -403,7 +403,7 @@ def run_generator(test_mode=False):
         MUSIC_PATH = ""
 
     # בחירה אקראית של 2 טיקרים שונים
-    filtered_list = TICKERS_TO_CHECK - ["PLTR", "COIN", "ARM"]
+    filtered_list = [t for t in TICKERS_TO_CHECK if t not in ["PLTR", "COIN", "ARM"]]
     ticker1, ticker2 = random.sample(filtered_list, 2)
 
     # יצירת שם קובץ דינמי
