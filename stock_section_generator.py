@@ -110,20 +110,54 @@ def select_top_stocks_of_the_week(count=6):
 # ---------------------------------------------------------
 
 
-def fetch_stock_full_context(ticker):
-  """שולפת נתוני נרות, מדדים פונדמנטליים, ציפיות אנליסטים וחדשות עבור ה-AI."""
+def fetch_stock_full_context(ticker, preloaded_df=None):
+  """שולפת נתוני נרות, מדדים פונדמנטליים, ציפיות אנליסטים וחדשות עבור ה-AI.
+
+  משתמשת בגיבויים כדי למנוע YFRateLimitError.
+  """
   t = yf.Ticker(ticker)
 
-  # 1. נתוני נרות שעתיים (5 ימי מסחר)
-  df_ohlc = t.history(period="5d", interval="1h")
+  # 1. נתוני נרות שעתיים - שימוש במידע שיועד מראש או שליפה מקומית
+  if preloaded_df is not None and not preloaded_df.empty:
+    df_ohlc = preloaded_df
+  else:
+    df_ohlc = t.history(period="5d", interval="1h")
 
-  # 2. נתונים פונדמנטליים ודירוגי אנליסטים
-  info = t.info or {}
-  company_name = info.get("shortName") or info.get("longName") or ticker
+  # 2. שליפת נתונים בטוחה (ללא קריסה מ-Rate Limit)
+  info = {}
+  try:
+    info = t.info or {}
+  except Exception as e:
+    logger.warning(f"⚠️ Could not fetch t.info for {ticker} (Rate Limit): {e}")
 
-  open_price = df_ohlc["Open"].iloc[0]
-  current_price = df_ohlc["Close"].iloc[-1]
-  pct_change = ((current_price - open_price) / open_price) * 100
+  # שליפת נתונים מהירים (fast_info - אינו חוטף Rate Limit!)
+  fast_info = {}
+  try:
+    fast_info = t.fast_info
+  except Exception:
+    pass
+
+  company_name = (
+      info.get("shortName") or info.get("longName") or ticker
+  )
+
+  # חישוב מחיר ואחוז שינוי
+  if not df_ohlc.empty:
+    open_price = df_ohlc["Open"].iloc[0]
+    current_price = df_ohlc["Close"].iloc[-1]
+  else:
+    current_price = fast_info.get("lastPrice", 0)
+    open_price = fast_info.get("previousClose", current_price)
+
+  pct_change = (
+      ((current_price - open_price) / open_price) * 100
+      if open_price != 0
+      else 0
+  )
+
+  # Market Cap מ-fast_info (בטוח) או מ-info
+  market_cap_raw = fast_info.get("market_cap") or info.get("marketCap")
+  market_cap_str = format_large_number(market_cap_raw)
 
   # נתוני אנליסטים וציפיות שוק
   target_price = info.get("targetMeanPrice")
@@ -131,7 +165,7 @@ def fetch_stock_full_context(ticker):
   recommendation = (info.get("recommendationKey") or "N/A").upper()
   num_analysts = info.get("numberOfAnalystRecommendations", "N/A")
 
-  # 3. איסוף חדשות מ-Google News RSS עבור הקשר ה-AI
+  # 3. איסוף חדשות מ-Google News RSS
   news_headlines = []
   try:
     url = f"https://news.google.com/rss/search?q={ticker}+stock+when:7d&hl=en-US&gl=US&ceid=US:en"
@@ -152,7 +186,7 @@ def fetch_stock_full_context(ticker):
       "df_ohlc": df_ohlc,
       "current_price": current_price,
       "pct_change": pct_change,
-      "market_cap": format_large_number(info.get("marketCap")),
+      "market_cap": market_cap_str,
       "pe": f"{info.get('trailingPE'):.1f}" if info.get("trailingPE") else "N/A",
       "eps": (
           f"${info.get('trailingEps'):.2f}"
@@ -348,41 +382,85 @@ def render_single_stock_clip(stock_data, duration=20.0, fps=30):
 # ---------------------------------------------------------
 # 5. יצירת סקציית המניות המלאה
 # ---------------------------------------------------------
-def generate_stocks_section_video(stock_tickers, duration_per_stock=20.0, fps=30):
-    print(f"\n[2/3] 🎬 מפיק קליפים עבור {len(stock_tickers)} מניות ({duration_per_stock}s למנייה)...")
-    logger.info("Generating stock breakdown clips...")
+def generate_stocks_section_video(
+    stock_tickers, duration_per_stock=20.0, fps=30
+):
+  print(
+      f"\n[2/3] 🎬 מפיק קליפים עבור {len(stock_tickers)} מניות"
+      f" ({duration_per_stock}s למנייה)..."
+  )
+  logger.info("Generating stock breakdown clips...")
 
-    clips = []
-    figs_to_close = []
-    first = True
-    for idx, ticker in enumerate(stock_tickers, 1):
-        print(f"   [{idx}/{len(stock_tickers)}] מעבד נתונים וגרף נרות עבור {ticker}...")
-        stock_data = fetch_stock_full_context(ticker)
-        script = generate_stock_ai_script(stock_data)
-        if first:
-            first = False
-        else:
-            script = random.choice(["Next ", "For the Next Stock ", "To Our Next Topic "])+script
-        audio_file = generate_voiceover_audio(
-            script,
-            output_path=f"narration_{stock_data['ticker']}.mp3",
-            voice="en-GB-RyanNeural",
-            rate="+10%",
-        )
-        voice_clip = AudioFileClip(audio_file)
-        clip, fig = render_single_stock_clip(
-            stock_data, duration=voice_clip.duration, fps=30
-        )
-        clip = clip.set_audio(voice_clip)
-        clips.append(clip)
-        figs_to_close.append(fig)
+  # --- 1. הורדת נתונים מאוחדת מראש (מונע לחלוטין YFRateLimitError) ---
+  print("   🔄 מבצע Fetch מאוחד לכל הטיקרים למניעת Rate Limit...")
+  try:
+    batch_ohlc = yf.download(
+        tickers=stock_tickers,
+        period="5d",
+        interval="1h",
+        group_by="ticker",
+        progress=False,
+        threads=True,
+    )
+  except Exception as e:
+    logger.error(f"Failed batch download: {e}")
+    batch_ohlc = None
 
-    # שרשור כל קליפי המניות לרצף אחד רציף
-    final_stocks_clip = concatenate_videoclips(clips)
+  clips = []
+  figs_to_close = []
+  first = True
 
-    print("   ✅ ייצור סקציית המניות הושלם בהצלחה ב-RAM!")
-    return final_stocks_clip, figs_to_close
+  # --- 2. יצירת הוידאו לכל מנייה ---
+  for idx, ticker in enumerate(stock_tickers, 1):
+    print(
+        f"   [{idx}/{len(stock_tickers)}] מעבד נתונים וגרף נרות עבור"
+        f" {ticker}..."
+    )
 
+    # חילוץ ה-DF הספציפי של המנייה מתוך התוצאה המאוחדת
+    ticker_df = None
+    if batch_ohlc is not None and len(stock_tickers) > 1:
+      if ticker in batch_ohlc.columns.levels[0]:
+        ticker_df = batch_ohlc[ticker].dropna()
+    elif batch_ohlc is not None:
+      ticker_df = batch_ohlc.dropna()
+
+    # שליפת ההקשר המלא עם ה-Dataframe המוכן מראש
+    stock_data = fetch_stock_full_context(ticker, preloaded_df=ticker_df)
+
+    script = generate_stock_ai_script(stock_data)
+
+    if first:
+      first = False
+    else:
+      script = (
+          random.choice(
+              ["Next ", "For the Next Stock ", "To Our Next Topic "]
+          )
+          + script
+      )
+
+    audio_file = generate_voiceover_audio(
+        script,
+        output_path=f"narration_{stock_data['ticker']}.mp3",
+        voice="en-GB-RyanNeural",
+        rate="+10%",
+    )
+
+    voice_clip = AudioFileClip(audio_file)
+    clip, fig = render_single_stock_clip(
+        stock_data, duration=voice_clip.duration, fps=fps
+    )
+
+    clip = clip.set_audio(voice_clip)
+    clips.append(clip)
+    figs_to_close.append(fig)
+
+  # שרשור כל קליפי המניות לרצף אחד רציף
+  final_stocks_clip = concatenate_videoclips(clips)
+
+  print("   ✅ ייצור סקציית המניות הושלם בהצלחה ב-RAM!")
+  return final_stocks_clip, figs_to_close
 
 # ---------------------------------------------------------
 # הרצה ראשית לבדיקת סקציית המניות
