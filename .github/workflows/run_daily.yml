@@ -2,15 +2,15 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 01:30 שעון ישראל (22:30 UTC) - תמיד VS כי השוק סגור
+    # 1. 01:30 שעון ישראל (22:25 UTC) - תמיד VS כי השוק סגור
     - cron: '25 22 * * *'
 
-    # 2. 15:14 שעון ישראל (11:14 UTC) - כל יום
+    # 2. 15:14 שעון ישראל (11:14 UTC) - כל יום (ביום ראשון מריץ weekly_summery)
     - cron: '14 11 * * *'
-    
-    # 3. 19:33 שעון ישראל (15:33 UTC) - כל יום
+
+    # 3. 19:33 שעון ישראל (15:25 UTC) - כל יום
     - cron: '25 15 * * *'
-    
+
     # 4. 23:22 שעון ישראל (19:21 UTC) - כל יום
     - cron: '21 19 * * *'
 
@@ -24,6 +24,7 @@ on:
         options:
           - vs_video
           - update_video
+          - weekly_summery
 
 jobs:
   ping-streamlit:
@@ -55,19 +56,26 @@ jobs:
           if manual_input:
               video_type = manual_input
           else:
-              # 2. בדיקת סטטוס בורסה לפי שעון ניו יורק (Eastern Time)
+              # 2. בדיקת זמנים לפי שעון ישראל ושעון ניו יורק
+              now_il = datetime.now(ZoneInfo('Asia/Jerusalem'))
               now_et = datetime.now(ZoneInfo('America/New_York'))
-              
-              is_weekend = now_et.weekday() >= 5  # 5 = שבת, 6 = ראשון
-              is_trading_hours = dtime(9, 30) <= now_et.time() < dtime(16, 0)
-              
-              is_market_open = (not is_weekend) and is_trading_hours
 
-              # אם השוק סגור (כולל 01:30, סופי שבוע או לפני/אחרי המסחר) -> סרטון VS
-              if not is_market_open:
-                  video_type = 'vs_video'
+              is_sunday = now_il.weekday() == 6  # 6 = יום ראשון
+              is_afternoon_run = 15 <= now_il.hour < 16  # הרצת 15:14 / 15:33
+
+              # אם זה יום ראשון בהרצה של אחה\"צ -> סרטון סיכום שבועי
+              if is_sunday and is_afternoon_run:
+                  video_type = 'weekly_summery'
               else:
-                  video_type = 'update_video'
+                  # בדיקת סטטוס מסחר רגיל לפי שעון ניו יורק
+                  is_weekend = now_et.weekday() >= 5  # 5 = שבת, 6 = ראשון
+                  is_trading_hours = dtime(9, 30) <= now_et.time() < dtime(16, 0)
+                  is_market_open = (not is_weekend) and is_trading_hours
+
+                  if not is_market_open:
+                      video_type = 'vs_video'
+                  else:
+                      video_type = 'update_video'
 
           url = f'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}&video_type={video_type}'
           print(f'🚀 Opening {url} (Type: {video_type}) in Headless Chrome...')
