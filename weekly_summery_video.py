@@ -10,6 +10,7 @@ from moviepy.editor import (
     concatenate_videoclips,
     afx
 )
+from thumbnail import generate_simple_thumbnail
 import matplotlib.pyplot as plt
 # ייבוא הפונקציות מהמודולים שיצרת
 from index_section_generator import (
@@ -116,7 +117,7 @@ def build_full_weekly_video(
 
         # --- 7. שמירת הקובץ הסופי ---
 
-        print(f"\n💾 מקרן ושומר את הסרטון המלא: {output_filename}...")
+        print(f"\n💾 מקרן ושומר את הסרטון המלא: {youtube_title}...")
         final_video_clip.write_videofile(
             output_filename,
             fps=30,
@@ -152,7 +153,13 @@ def generate_and_upload_video(upload=True):
         output_filename="Weekly_Market_Summary.mp4",
         num_stocks=6
     )
+    img_path = generate_simple_thumbnail(
+        sp500_weekly_change=0.25,
+        date_str="Aug 16, 2026",
+        top_tickers=["AMZN", "TSLA", "NVDA"],
+        output_path="thumbnail.png"
+    )
     if upload:
-        upload_video(filename, title, v_description, tags)
+        upload_video(filename, title, v_description, tags, thumbnail_path=img_path)
     else:
         return filename

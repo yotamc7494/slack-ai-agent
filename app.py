@@ -124,7 +124,7 @@ if run_test_c or run_full_c:
     is_test_mode_c = run_test_c
     st.info(f"מריץ סרטון סיכום שבועי (מצב טסט: {is_test_mode_c})...")
     # קריאה לפונקציה המקורית שלך מהקובץ השני
-    video_path = generate_and_upload_video(upload=is_test_mode_c)
+    video_path = generate_and_upload_video(upload=not is_test_mode_c)
     st.success("תהליך יצירת סרטון סיכום שבועי הסתיים.")
     if video_path and os.path.exists(video_path):
         with open(video_path, "rb") as file:
