@@ -30,7 +30,7 @@ if "WEBHOOK_TOKEN" in st.query_params:
         filename = run_generator()
         st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
         print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
-    elif video_type == "weekly_recup_video":
+    elif video_type == "weekly_summery":
         sys.stdout.reconfigure(line_buffering=True)
         filename = generate_and_upload_video()
         st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
