@@ -122,7 +122,9 @@ def build_full_weekly_video(
             fps=30,
             codec="libx264",
             audio_codec="aac",
-            logger=None
+            logger=None,  # מכבה את מד ההתקדמות ב-Streamlit
+            threads=1,  # מונע התנגשויות תהליכונים בשרת
+            preset="ultrafast",  # רינדור מהיר בשרת
         )
 
         print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {output_filename}")
