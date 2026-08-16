@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import sys
 # ייבוא הפונקציות המקוריות שלך - הנוסחאות עובדות!
+import streamlit.components.v1 as components
+import base64
 from comparison_video_engine import run_generator
 from main import render_final_video, view_final_video
 from weekly_summery_video import generate_and_upload_video
@@ -125,12 +127,31 @@ if run_test_c or run_full_c:
     st.info(f"מריץ סרטון סיכום שבועי (מצב טסט: {is_test_mode_c})...")
     # קריאה לפונקציה המקורית שלך מהקובץ השני
     video_path = generate_and_upload_video(upload=not is_test_mode_c)
-    st.success("תהליך יצירת סרטון סיכום שבועי הסתיים.")
     if video_path and os.path.exists(video_path):
+        # 1. קריאת קובץ הוידאו והמרתו ל-Base64 עבור ה-JavaScript
         with open(video_path, "rb") as file:
-            st.download_button(
-                label="📥 הורד את הסיכום השבועי למחשב",
-                data=file,
-                file_name=os.path.basename(video_path),
-                mime="video/mp4"
-            )
+            video_bytes = file.read()
+
+        b64_video = base64.b64encode(video_bytes).decode("utf-8")
+        file_name = os.path.basename(video_path)
+
+        # 2. הזרקת קוד JavaScript שמפעיל הורדה אוטומטית בדפדפן
+        download_js = f"""
+        <script>
+            var a = document.createElement('a');
+            a.href = 'data:video/mp4;base64,{b64_video}';
+            a.download = '{file_name}';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        </script>
+        """
+        components.html(download_js, height=0, width=0)
+
+        # 3. לחצן גיבוי למקרה שהדפדפן חסם את ההורדה האוטומטית
+        st.download_button(
+            label="📥 ההורדה לא התחילה? לחץ כאן להורדה ידנית",
+            data=video_bytes,
+            file_name=file_name,
+            mime="video/mp4",
+        )
