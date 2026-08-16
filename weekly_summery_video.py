@@ -157,7 +157,7 @@ def get_formatted_today(date_obj=None):
   אם לא מועבר תאריך, תשתמש בתאריך של היום.
   """
   if date_obj is None:
-    date_obj = datetime.now()
+    date_obj = datetime.datetime.now()
 
   # שימוש ב-f-string בשילוב strftime כדי לעבוד נקי בכל מערכת הפעלה (גם לינוקס וגם ווינדוס)
   return f"{date_obj.strftime('%b')} {date_obj.day}, {date_obj.strftime('%Y')}"
