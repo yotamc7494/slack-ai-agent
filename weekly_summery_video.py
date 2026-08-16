@@ -136,18 +136,21 @@ def build_full_weekly_video(
 
     finally:
         print("\n🧹 מנקה קבצים זמניים ומשאבים...")
-        for fig in figs_to_close:
-            try:
-                plt.close(fig)
-            except Exception:
-                pass
-
-        for file_path in set(cleanups):
-            if os.path.exists(file_path):
+        try:
+            for fig in figs_to_close:
                 try:
-                    os.remove(file_path)
+                    plt.close(fig)
                 except Exception:
                     pass
+
+            for file_path in set(cleanups):
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(e)
     return output_filename, youtube_title, ai_content["description"], ai_content["tags"], top_stocks
 
 
@@ -169,13 +172,13 @@ def generate_and_upload_video(upload=True):
         output_filename="Weekly_Market_Summary.mp4",
         num_stocks=6
     )
-    img_path = generate_simple_thumbnail(
-        sp500_weekly_change=0.25,
-        date_str=get_formatted_today(),
-        top_tickers=top_tickers,
-        output_path="thumbnail.png"
-    )
     if upload:
+        img_path = generate_simple_thumbnail(
+            sp500_weekly_change=0.25,
+            date_str=get_formatted_today(),
+            top_tickers=top_tickers,
+            output_path="thumbnail.png"
+        )
         upload_video(filename, title, v_description, tags, thumbnail_path=img_path, privacy_status="private")
     else:
         return filename
