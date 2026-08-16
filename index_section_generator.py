@@ -239,7 +239,6 @@ def generate_market_video(
     news_events,
     audio_path="index_narration.mp3",
     default_duration=45.0,
-    aspect_ratio="16:9",
 ):
     print("\n[3/4] 🎨 מכין את אלמנטים הויזואליים בזיכרון RAM...")
     logger.info("Initializing RAM Canvas and rendering elements...")
@@ -260,8 +259,7 @@ def generate_market_video(
         duration = default_duration
         print(f"   ⚠️ לא נמצא קובץ קריינות, אורך ברירת מחדל: {duration:.1f}s")
 
-    figsize = (16, 9) if aspect_ratio == "16:9" else (10.8, 19.2)
-    fig = plt.figure(figsize=figsize, dpi=100)
+    fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
     canvas = FigureCanvasAgg(fig)
     fig.patch.set_facecolor('#0B0E14')
 

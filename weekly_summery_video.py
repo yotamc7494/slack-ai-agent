@@ -92,6 +92,10 @@ def build_full_weekly_video(
 
         # --- 5. שרשור כל 4 החלקים ברצף ---
         print("\n🔗 משרשר את כל סקציות הווידאו...")
+        index_clip = index_clip.resize((1920, 1080))
+        upcoming_clip = upcoming_clip.resize((1920, 1080))
+        stocks_clip = stocks_clip.resize((1920, 1080))
+        outro_clip = outro_clip.resize((1920, 1080))
         final_video_clip = concatenate_videoclips([index_clip, upcoming_clip, stocks_clip, outro_clip])
         total_duration = final_video_clip.duration
 

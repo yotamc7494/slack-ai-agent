@@ -6,7 +6,7 @@ from moviepy.editor import VideoClip
 
 def render_outro_frame(t=0):
   """מייצרת פריים Outro מודרני ונקי להנעה לפעולה (Call to Action)."""
-  fig = plt.figure(figsize=(16, 9), dpi=100)
+  fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
   canvas = FigureCanvasAgg(fig)
   fig.patch.set_facecolor('#0B0E14')
 

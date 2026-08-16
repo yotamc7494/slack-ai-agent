@@ -260,7 +260,7 @@ def render_single_stock_clip(stock_data, duration=20.0, fps=30):
     df_ohlc = stock_data['df_ohlc']
     num_candles = len(df_ohlc)
 
-    fig = plt.figure(figsize=(16, 9), dpi=100)
+    fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
     canvas = FigureCanvasAgg(fig)
     fig.patch.set_facecolor('#0B0E14')
 

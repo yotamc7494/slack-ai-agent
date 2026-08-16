@@ -196,7 +196,7 @@ def generate_upcoming_week_scripts(week_context):
 # ---------------------------------------------------------
 def render_macro_events_frame(macro_events):
   print(macro_events)
-  fig = plt.figure(figsize=(16, 9), dpi=100)
+  fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
   canvas = FigureCanvasAgg(fig)
   fig.patch.set_facecolor("#0B0E14")
 
