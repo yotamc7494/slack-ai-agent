@@ -63,8 +63,7 @@ def build_full_weekly_video(
         index_clip = generate_market_video(
             market_data,
             news,
-            audio_path=index_audio_file,
-            aspect_ratio="16:9"
+            audio_path=index_audio_file
         )
 
         # --- חלק 2: מה יהיה השבוע ---
