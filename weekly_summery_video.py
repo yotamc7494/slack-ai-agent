@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 import logging
@@ -144,22 +145,34 @@ def build_full_weekly_video(
                     os.remove(file_path)
                 except Exception:
                     pass
-    return output_filename, youtube_title, ai_content["description"], ai_content["tags"]
+    return output_filename, youtube_title, ai_content["description"], ai_content["tags"], top_stocks
+
+
+def get_formatted_today(date_obj=None):
+  """מחזירה את התאריך בפורמט "Aug 16, 2026".
+
+  אם לא מועבר תאריך, תשתמש בתאריך של היום.
+  """
+  if date_obj is None:
+    date_obj = datetime.now()
+
+  # שימוש ב-f-string בשילוב strftime כדי לעבוד נקי בכל מערכת הפעלה (גם לינוקס וגם ווינדוס)
+  return f"{date_obj.strftime('%b')} {date_obj.day}, {date_obj.strftime('%Y')}"
 
 
 def generate_and_upload_video(upload=True):
-    filename, title, v_description, tags = build_full_weekly_video(
+    filename, title, v_description, tags, top_tickers = build_full_weekly_video(
         bg_music_path="assets/weekly_recup_music.mp3",
         output_filename="Weekly_Market_Summary.mp4",
         num_stocks=6
     )
     img_path = generate_simple_thumbnail(
         sp500_weekly_change=0.25,
-        date_str="Aug 16, 2026",
-        top_tickers=["AMZN", "TSLA", "NVDA"],
+        date_str=get_formatted_today(),
+        top_tickers=top_tickers,
         output_path="thumbnail.png"
     )
     if upload:
-        upload_video(filename, title, v_description, tags, thumbnail_path=img_path)
+        upload_video(filename, title, v_description, tags, thumbnail_path=img_path, privacy_status="private")
     else:
         return filename
