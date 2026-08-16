@@ -1,6 +1,9 @@
 import os
 import sys
 import logging
+
+from pinecone.models.collections import description
+from uploader import upload_video
 from outro_generator import generate_outro_clip
 from moviepy.editor import (
     VideoFileClip,
@@ -114,19 +117,17 @@ def build_full_weekly_video(
             final_video_clip = final_video_clip.set_audio(combined_audio)
 
         # --- 7. שמירת הקובץ הסופי ---
-        sanitized_title = "".join(c for c in youtube_title if c.isalnum() or c in (' ', '_', '-')).rstrip()
-        final_filename = f"{sanitized_title}.mp4" if sanitized_title else output_filename
 
-        print(f"\n💾 מקרן ושומר את הסרטון המלא: {final_filename}...")
+        print(f"\n💾 מקרן ושומר את הסרטון המלא: {output_filename}...")
         final_video_clip.write_videofile(
-            final_filename,
+            output_filename,
             fps=30,
             codec="libx264",
             audio_codec="aac",
             logger="bar"
         )
 
-        print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {final_filename}")
+        print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {output_filename}")
 
     finally:
         print("\n🧹 מנקה קבצים זמניים ומשאבים...")
@@ -142,11 +143,16 @@ def build_full_weekly_video(
                     os.remove(file_path)
                 except Exception:
                     pass
+    return output_filename, youtube_title, ai_content["description"], ai_content["tags"]
 
 
-if __name__ == "__main__":
-    build_full_weekly_video(
+def generate_and_upload_video(upload=True):
+    filename, title, v_description, tags = build_full_weekly_video(
         bg_music_path="assets/weekly_recup_music.mp3",
         output_filename="Weekly_Market_Summary.mp4",
         num_stocks=6
     )
+    if upload:
+        upload_video(filename, title, v_description, tags)
+    else:
+        return filename

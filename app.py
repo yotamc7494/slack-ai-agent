@@ -4,6 +4,7 @@ import sys
 # ייבוא הפונקציות המקוריות שלך - הנוסחאות עובדות!
 from comparison_video_engine import run_generator
 from main import render_final_video, view_final_video
+from webbrowser import generate_and_upload_video
 
 st.set_page_config(page_title="AI Stock Video Generator", page_icon="🚀")
 
@@ -27,6 +28,11 @@ if "WEBHOOK_TOKEN" in st.query_params:
     elif video_type == "vs_video":
         sys.stdout.reconfigure(line_buffering=True)
         filename = run_generator()
+        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
+    elif video_type == "weekly_recup_video":
+        sys.stdout.reconfigure(line_buffering=True)
+        filename = generate_and_upload_video()
         st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
         print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
   else:
@@ -93,6 +99,37 @@ if run_test_c or run_full_c:
         with open(video_path, "rb") as file:
             st.download_button(
                 label="📥 הורד את ההשוואה למחשב",
+                data=file,
+                file_name=os.path.basename(video_path),
+                mime="video/mp4"
+            )
+
+st.write("---") # קו מפריד ויזואלי
+
+# --- סקשן סרטוני השוואה ---
+st.header("סרטוני סיכום שבועי")
+# יצירת עמודות נפרדות וחדשות (col3, col4) עבור סקשן זה כדי למנוע בלבול
+col5, col6 = st.columns(2)
+
+with col5:
+    # שינוי התווית לייחודית: הוספת המילה "השוואה"
+    run_full_c = st.button("🚀 הרץ והעלה סיכום שבועי ליוטיוב")
+
+with col6:
+    # שינוי התווית לייחודית: הוספת המילה "השוואה"
+    run_test_c = st.button("🧪 הרצת ניסיון סיכום שבועי (תצוגה מקדימה)")
+
+# לוגיקת הפעלה עבור סרטוני השוואה
+if run_test_c or run_full_c:
+    is_test_mode_c = run_test_c
+    st.info(f"מריץ סרטון סיכום שבועי (מצב טסט: {is_test_mode_c})...")
+    # קריאה לפונקציה המקורית שלך מהקובץ השני
+    video_path = generate_and_upload_video(upload=is_test_mode_c)
+    st.success("תהליך יצירת סרטון סיכום שבועי הסתיים.")
+    if video_path and os.path.exists(video_path):
+        with open(video_path, "rb") as file:
+            st.download_button(
+                label="📥 הורד את הסיכום השבועי למחשב",
                 data=file,
                 file_name=os.path.basename(video_path),
                 mime="video/mp4"
