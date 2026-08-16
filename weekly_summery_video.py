@@ -86,7 +86,7 @@ def build_full_weekly_video(
             cleanups.append(f"narration_{ticker}.mp3")
 
         # --- חלק 4: מסך סיום (Outro & Call to Action) ---
-        print("\n[4/4] 🔔 מוסיף מסך סיום להנעה לפעולה (Outro)...")
+        print("\n[4/4] 🔔 מוסיף מסך סיום להנעה לפעולה (Outro)...",flush=True)
         outro_clip = generate_outro_clip(duration=5.0)
 
         # --- 5. שרשור כל 4 החלקים ברצף ---
@@ -100,7 +100,7 @@ def build_full_weekly_video(
 
         # --- 6. המוזיקה + עמעום בסיום (Fade Out) ---
         if os.path.exists(bg_music_path):
-            print(f"\n🎵 מעבד מוזיקת רקע מ: {bg_music_path} עם Fade Out בסיום...")
+            print(f"\n🎵 מעבד מוזיקת רקע מ: {bg_music_path} עם Fade Out בסיום...",flush=True)
             bg_music = AudioFileClip(bg_music_path)
 
             # התאמת אורך המוזיקה
@@ -121,7 +121,7 @@ def build_full_weekly_video(
 
         # --- 7. שמירת הקובץ הסופי ---
 
-        print(f"\n💾 מקרן ושומר את הסרטון המלא: {youtube_title}...")
+        print(f"\n💾 מקרן ושומר את הסרטון המלא: {youtube_title}...",flush=True)
         final_video_clip.write_videofile(
             output_filename,
             fps=30,
