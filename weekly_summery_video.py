@@ -1,8 +1,6 @@
 import os
 import sys
 import logging
-
-from pinecone.models.collections import description
 from uploader import upload_video
 from outro_generator import generate_outro_clip
 from moviepy.editor import (
