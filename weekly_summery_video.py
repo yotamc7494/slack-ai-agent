@@ -122,7 +122,7 @@ def build_full_weekly_video(
             fps=30,
             codec="libx264",
             audio_codec="aac",
-            logger=False
+            logger=None
         )
 
         print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {output_filename}")
