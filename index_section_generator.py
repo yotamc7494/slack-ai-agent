@@ -40,63 +40,78 @@ logger = logging.getLogger("VideoEngine")
 # 1. שליפת נתוני מדדים וביטקוין + אינטרפולציה + תאריכים
 # ---------------------------------------------------------
 def fetch_market_data(target_points=1000):
-    """
-    שולפת נתוני 5 ימי מסחר עבור SPY, QQQ ו-BTC-USD,
-    מחשבת טווח תאריכים דינמי ומבצעת אינטרפולציית Spline.
-    """
-    print("\n[1/4] 📊 שולף נתוני מסחר מ-yfinance עבור SPY, QQQ ו-BTC-USD...")
-    logger.info("Fetching market data...")
+  """שולפת נתוני 5 ימי מסחר עבור SPY, QQQ ו-BTC-USD, מחשבת טווח תאריכים דינמי
 
-    spy = yf.Ticker("SPY")
-    qqq = yf.Ticker("QQQ")
-    btc = yf.Ticker("BTC-USD")
+  ומבצעת אינטרפולציית Spline.
+  """
+  print(
+      "\n[1/4] 📊 שולף נתוני מסחר מ-yfinance עבור SPY, QQQ ו-BTC-USD..."
+  )
+  logger.info("Fetching market data...")
 
-    df_spy = spy.history(period="5d", interval="1h")
-    df_qqq = qqq.history(period="5d", interval="1h")
-    df_btc = btc.history(period="5d", interval="1h")
+  spy = yf.Ticker("SPY")
+  qqq = yf.Ticker("QQQ")
+  btc = yf.Ticker("BTC-USD")
 
-    min_len = min(len(df_spy), len(df_qqq), len(df_btc))
-    df_spy = df_spy.iloc[-min_len:]
-    df_qqq = df_qqq.iloc[-min_len:]
-    df_btc = df_btc.iloc[-min_len:]
+  df_spy = spy.history(period="5d", interval="1h")
+  df_qqq = qqq.history(period="5d", interval="1h")
+  df_btc = btc.history(period="5d", interval="1h")
 
-    start_date_str = df_spy.index[0].strftime("%b %d, %Y").upper()
-    end_date_str = df_spy.index[-1].strftime("%b %d, %Y").upper()
-    date_range = f"{start_date_str} - {end_date_str}"
-    print(f"   📅 טווח תאריכים שנמצא: {date_range} ({min_len} נקודות דגימה)")
+  min_len = min(len(df_spy), len(df_qqq), len(df_btc))
+  df_spy = df_spy.iloc[-min_len:]
+  df_qqq = df_qqq.iloc[-min_len:]
+  df_btc = df_btc.iloc[-min_len:]
 
-    spy_raw = df_spy['Close'].values
-    qqq_raw = df_qqq['Close'].values
-    btc_raw = df_btc['Close'].values
+  start_date_str = df_spy.index[0].strftime("%b %d, %Y").upper()
+  end_date_str = df_spy.index[-1].strftime("%b %d, %Y").upper()
+  date_range = f"{start_date_str} - {end_date_str}"
+  print(f"   📅 טווח תאריכים שנמצא: {date_range} ({min_len} נקודות דגימה)")
 
-    spy_pct_raw = ((spy_raw - spy_raw[0]) / spy_raw[0]) * 100
-    qqq_pct_raw = ((qqq_raw - qqq_raw[0]) / qqq_raw[0]) * 100
-    btc_pct_raw = ((btc_raw - btc_raw[0]) / btc_raw[0]) * 100
+  spy_raw = df_spy["Close"].values
+  qqq_raw = df_qqq["Close"].values
+  btc_raw = df_btc["Close"].values
 
-    x_raw = np.linspace(0, 1, min_len)
-    x_smooth = np.linspace(0, 1, target_points)
+  spy_pct_raw = ((spy_raw - spy_raw[0]) / spy_raw[0]) * 100
+  qqq_pct_raw = ((qqq_raw - qqq_raw[0]) / qqq_raw[0]) * 100
+  btc_pct_raw = ((btc_raw - btc_raw[0]) / btc_raw[0]) * 100
 
-    print(f"   🌀 מבצע אינטרפולציית Spline ל-{target_points} נקודות להחלקה מלאה...")
-    spl_spy = make_interp_spline(x_raw, spy_pct_raw, k=3)(x_smooth)
-    spl_qqq = make_interp_spline(x_raw, qqq_pct_raw, k=3)(x_smooth)
-    spl_btc = make_interp_spline(x_raw, btc_pct_raw, k=3)(x_smooth)
+  # 🔥 חישוב אחוז השינוי הסופי לכל המדדים (מנקודת ההתחלה עד הסוף)
+  sp500_pct_change = float(spy_pct_raw[-1])
+  qqq_pct_change = float(qqq_pct_raw[-1])
+  btc_pct_change = float(btc_pct_raw[-1])
 
-    spl_spy_p = make_interp_spline(x_raw, spy_raw, k=3)(x_smooth)
-    spl_qqq_p = make_interp_spline(x_raw, qqq_raw, k=3)(x_smooth)
-    spl_btc_p = make_interp_spline(x_raw, btc_raw, k=3)(x_smooth)
+  print(f"   📈 שינוי שבועי SPY (S&P 500): {sp500_pct_change:+.2f}%")
 
-    print("   ✅ שליפת הנתונים והאינטרפולציה הושלמו בהצלחה.")
-    return {
-        'x_smooth': x_smooth,
-        'spy_pct': spl_spy,
-        'qqq_pct': spl_qqq,
-        'btc_pct': spl_btc,
-        'spy_prices': spl_spy_p,
-        'qqq_prices': spl_qqq_p,
-        'btc_prices': spl_btc_p,
-        'date_range': date_range,
-        'total_steps': target_points
-    }
+  x_raw = np.linspace(0, 1, min_len)
+  x_smooth = np.linspace(0, 1, target_points)
+
+  print(
+      f"   🌀 מבצע אינטרפולציית Spline ל-{target_points} נקודות להחלקה"
+      " מלאה..."
+  )
+  spl_spy = make_interp_spline(x_raw, spy_pct_raw, k=3)(x_smooth)
+  spl_qqq = make_interp_spline(x_raw, qqq_pct_raw, k=3)(x_smooth)
+  spl_btc = make_interp_spline(x_raw, btc_pct_raw, k=3)(x_smooth)
+
+  spl_spy_p = make_interp_spline(x_raw, spy_raw, k=3)(x_smooth)
+  spl_qqq_p = make_interp_spline(x_raw, qqq_raw, k=3)(x_smooth)
+  spl_btc_p = make_interp_spline(x_raw, btc_raw, k=3)(x_smooth)
+
+  print("   ✅ שליפת הנתונים והאינטרפולציה הושלמו בהצלחה.")
+  return {
+      "x_smooth": x_smooth,
+      "spy_pct": spl_spy,
+      "qqq_pct": spl_qqq,
+      "btc_pct": spl_btc,
+      "spy_prices": spl_spy_p,
+      "qqq_prices": spl_qqq_p,
+      "btc_prices": spl_btc_p,
+      "date_range": date_range,
+      "total_steps": target_points,
+      "sp500_pct_change": sp500_pct_change,  # 🔥 המפתח שנדרש ב-Thumbnail וב-Metadata
+      "qqq_pct_change": qqq_pct_change,
+      "btc_pct_change": btc_pct_change,
+  }
 
 
 # ---------------------------------------------------------
@@ -209,7 +224,7 @@ def generate_market_recap_ai_content(market_data_summary, news_events):
     Return ONLY a valid JSON object with the following fields:
     {{
       "narration_script": "30-second voiceover script ending with a transition to upcoming stocks (65-75 words)",
-      "youtube_title": "High-CTR title with emojis starting with the exact phrase [Weekly Market Recap]",
+      "youtube_title": "High-CTR title with emojis Ending with: | Weekly Market Recap",
       "description": "Short summary ending with a question",
       "tags": "tag1,tag2,tag3,tag4"
     }}

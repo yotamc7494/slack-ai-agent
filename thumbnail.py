@@ -95,7 +95,7 @@ def generate_simple_thumbnail(
 
   for i in range(min(3, len(top_tickers))):
     draw.text(
-        (start_x + 140, line2_y + i * 120),
+        (start_x + 150, line2_y + i * 120),
         top_tickers[i],
         font=font_medium,
         fill=(255, 255, 255),

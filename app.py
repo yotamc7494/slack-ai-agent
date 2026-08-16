@@ -39,7 +39,6 @@ if "WEBHOOK_TOKEN" in st.query_params:
         print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
   else:
       st.info("Wrong Token!")
-
 with col1:
     # שינוי התווית לייחודית: הוספת המילה "מנייה"
     run_full = st.button("🚀 הרץ והעלה מנייה ליוטיוב")
