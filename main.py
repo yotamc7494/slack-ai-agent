@@ -111,7 +111,7 @@ def extract_news_context(news_data, ticker_symbol="", max_articles=3):
         count += 1
 
     if not formatted_articles:
-        return "No breaking news found for this ticker today."
+        return "No breaking news found for this ticker today. "
 
     return "\n\n".join(formatted_articles)
 
