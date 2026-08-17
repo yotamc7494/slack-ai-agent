@@ -687,7 +687,7 @@ def render_final_video():
 
     clean_symbol = stock_data['symbol']
     output_filename = f"STOCK_{clean_symbol}_{int(stock_data['change_pct'])}pct.mp4"
-
+    print("Saving Final Video", flush=True)
     final_video.write_videofile(
         output_filename,
         fps=24,
