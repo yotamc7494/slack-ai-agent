@@ -53,13 +53,32 @@ USED_STOCKS_FILE = "used_stocks.json"
 # 1. איתור מניה זזה ברשת
 # -----------------------------------------------------------------------------
 def _get_redis_client():
-  """מייצרת חיבור ל-Upstash Redis מתוך Secrets של Streamlit או משתני סביבה."""
-  url = getattr(st, "secrets", {}).get("UPSTASH_REDIS_REST_URL") or os.getenv(
-      "UPSTASH_REDIS_REST_URL"
-  )
-  token = getattr(st, "secrets", {}).get(
-      "UPSTASH_REDIS_REST_TOKEN"
-  ) or os.getenv("UPSTASH_REDIS_REST_TOKEN")
+  """מייצרת חיבור ל-Upstash Redis מתוך:
+
+  1. Streamlit Secrets (בשרת / פיתוח Streamlit)
+  2. משתני סביבה / קובץ .env (בהרצה מקומית או כסקריפט עצמאי)
+  """
+  url = None
+  token = None
+
+  # 1. ניסיון שליפה מ-st.secrets במידה וארגומנט השרת פעיל
+  try:
+    if hasattr(st, "secrets"):
+      url = st.secrets.get("UPSTASH_REDIS_REST_URL")
+      token = st.secrets.get("UPSTASH_REDIS_REST_TOKEN")
+  except Exception:
+    pass
+
+  # 2. גיבוי: שליפה מ-os.getenv (כולל הנתונים שנטענו מ-.env)
+  url = url or os.getenv("UPSTASH_REDIS_REST_URL")
+  token = token or os.getenv("UPSTASH_REDIS_REST_TOKEN")
+
+  if not url or not token:
+    raise ValueError(
+        "❌ Missing Redis credentials! Check your .env file or Streamlit"
+        " secrets."
+    )
+
   return Redis(url=url, token=token)
 
 
@@ -831,4 +850,6 @@ def view_final_video():
     return output_filename
 
 if __name__ == "__main__":
+    #print(get_used_stocks_today())
+    #mark_stock_as_used("MSTR")
     view_final_video()
