@@ -1,0 +1,15 @@
+name: Streamlit Keep Alive (5 Min)
+
+on:
+  schedule:
+    # מריץ את הסקריפט כל 5 דקות
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # מאפשר הפעלה ידנית מתוך לשונית Actions ב-GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit App
+        run: |
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/
