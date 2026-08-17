@@ -117,72 +117,129 @@ def extract_news_context(news_data, ticker_symbol="", max_articles=3):
 
 
 def get_top_moving_stock(test=False):
-    used_today = get_used_stocks_today()
-    print(f"📋 Stocks already used today ({date.today()}): {list(used_today) if used_today else 'None'}", flush=True)
+  used_today = get_used_stocks_today()
+  print(
+      f"📋 Stocks already used today ({date.today()}):"
+      f" {list(used_today) if used_today else 'None'}",
+      flush=True,
+  )
 
-    best_ticker_obj = None
-    max_change = -1
-    top_data = None
+  # 1. סינון מניות שכבר נעשה בהן שימוש היום
+  valid_tickers = [t for t in TICKERS_TO_CHECK if t not in used_today]
 
-    print("🔍 Searching for today's top-moving unused stock...")
-    for ticker_symbol in TICKERS_TO_CHECK:
-        if ticker_symbol in used_today:
-            print(f"⏭️ Skipping {ticker_symbol} (Already used today)")
-            continue
+  if not valid_tickers:
+    print(
+        "⚠️ All stocks in TICKERS_TO_CHECK were already used today! Resetting"
+        " selection..."
+    )
+    return get_top_moving_stock_fallback()
 
-        try:
-            ticker = yf.Ticker(ticker_symbol)
+  print(
+      f"🔍 Performing Batch Fetch for {len(valid_tickers)} tickers to avoid"
+      " Rate Limits..."
+  )
 
-            # 1. משיכת דאטה תוך-יומי של היום בלבד (אינטרוול 5 דקות לגרף חלק)
-            hist = ticker.history(period="1d", interval="5m")
+  # 2. הורדה מאוחדת בקריאה בודדת לכל הטיקרים (2 ימים אחרונים לקבלת מחיר סגירה קודם)
+  try:
+    batch_df = yf.download(
+        tickers=valid_tickers,
+        period="2d",
+        interval="5m",
+        group_by="ticker",
+        progress=False,
+        threads=True,
+    )
+  except Exception as e:
+    print(f"❌ Batch Download Failed: {e}")
+    return get_top_moving_stock_fallback()
 
-            # גיבוי: אם השוק סגור/בסופ"ש ומשכנו דאטה ריק ב-1d
-            if hist.empty or len(hist) < 2:
-                hist = ticker.history(period="2d", interval="15m")
-                if not hist.empty:
-                    latest_date = hist.index[-1].date()
-                    hist = hist[hist.index.date == latest_date]
+  max_change = -1
+  best_symbol = None
+  best_hist = None
+  best_curr_price = 0
+  best_raw_pct = 0
 
-            if hist.empty:
-                continue
+  # 3. ניתוח הנתונים בזיכרון (ללא קריאות נוספות לרשת)
+  is_multi_ticker = len(valid_tickers) > 1
 
-            curr_price = hist['Close'].iloc[-1]
+  for ticker_symbol in valid_tickers:
+    try:
+      # חילוץ ה-DataFrame הספציפי למנייה
+      if is_multi_ticker:
+        if ticker_symbol not in batch_df.columns.levels[0]:
+          continue
+        df_ticker = batch_df[ticker_symbol].dropna(how="all")
+      else:
+        df_ticker = batch_df.dropna(how="all")
 
-            # 2. מציאת מחיר הסגירה הרשמי של אתמול (Previous Close)
-            prev_close = ticker.fast_info.get('regular_market_previous_close')
-            if not prev_close or prev_close == 0:
-                prev_close = hist['Open'].iloc[0]  # גיבוי: מחיר הפתיחה של הבוקר
+      if df_ticker.empty or len(df_ticker) < 2:
+        continue
 
-            # 3. חישוב אחוז השינוי היומי המדויק
-            raw_pct = ((curr_price - prev_close) / prev_close) * 100
-            pct_change = abs(raw_pct)
+      # חילוץ יום המסחר האחרון הזמין בלבד
+      latest_date = df_ticker.index.date[-1]
+      today_hist = df_ticker[df_ticker.index.date == latest_date]
 
-            if pct_change > max_change:
-                news = extract_news_context(ticker.news)
-                max_change = pct_change
-                best_ticker_obj = ticker  # שומרים את ה-Ticker של המניה המובילה
+      if today_hist.empty:
+        continue
 
-                top_data = {
-                    "symbol": ticker_symbol,
-                    "current_price": round(curr_price, 2),
-                    "change_pct": round(raw_pct, 2),
-                    "history": hist['Close'],  # רק המחשבון/גרף של היום!
-                    "news": news,
-                    "company_name": ticker.info.get('longName') or ticker.info.get('shortName') or ticker_symbol
-                }
-        except Exception as e:
-            print(f"Error While Fetching Symbol {ticker_symbol}: {e}")
+      curr_price = today_hist["Close"].iloc[-1]
 
-    if not top_data and used_today:
-        print("⚠️ All stocks in TICKERS_TO_CHECK were already used today! Resetting selection...")
-        return get_top_moving_stock_fallback()
+      # מציאת מחיר סגירה קודם (הנר האחרון של הלילה הקודם, או פתיחת הבוקר כגיבוי)
+      prev_day_hist = df_ticker[df_ticker.index.date < latest_date]
+      if not prev_day_hist.empty:
+        prev_close = prev_day_hist["Close"].iloc[-1]
+      else:
+        prev_close = today_hist["Open"].iloc[0]
 
-    if top_data:
-        if not test:
-            mark_stock_as_used(top_data['symbol'])
-        print(f"🎯 Selected: {top_data['symbol']} with {top_data['change_pct']}% change", flush=True)
+      if not prev_close or prev_close == 0:
+        continue
 
-    return top_data, best_ticker_obj
+      # חישוב אחוז השינוי
+      raw_pct = ((curr_price - prev_close) / prev_close) * 100
+      pct_change = abs(raw_pct)
+
+      if pct_change > max_change:
+        max_change = pct_change
+        best_symbol = ticker_symbol
+        best_hist = today_hist["Close"]
+        best_curr_price = curr_price
+        best_raw_pct = raw_pct
+
+    except Exception as e:
+      print(f"Error analyzing batch data for {ticker_symbol}: {e}")
+
+  if not best_symbol:
+    print("⚠️ No valid market data found in batch! Using fallback...")
+    return get_top_moving_stock_fallback()
+
+  # 4. שליפת חדשות ושם חברה אך ורק עבור המנייה המנצחת!
+  print(f"🎯 Top Moving Stock: {best_symbol} ({round(best_raw_pct, 2)}%)")
+  best_ticker_obj = yf.Ticker(best_symbol)
+
+  news = []
+  company_name = best_symbol
+  try:
+    news = extract_news_context(best_ticker_obj.news)
+    info = best_ticker_obj.info
+    company_name = (
+        info.get("longName") or info.get("shortName") or best_symbol
+    )
+  except Exception as e:
+    print(f"⚠️ Could not fetch extra info/news for {best_symbol}: {e}")
+
+  top_data = {
+      "symbol": best_symbol,
+      "current_price": round(best_curr_price, 2),
+      "change_pct": round(best_raw_pct, 2),
+      "history": best_hist,
+      "news": news,
+      "company_name": company_name,
+  }
+
+  if not test:
+    mark_stock_as_used(best_symbol)
+
+  return top_data, best_ticker_obj
 
 
 def get_top_moving_stock_fallback():
