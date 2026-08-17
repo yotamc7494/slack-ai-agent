@@ -20,6 +20,7 @@ import PIL.Image
 from PIL import Image, ImageDraw, ImageFont
 from google import genai
 from google.genai import types
+from upstash_redis import Redis
 
 from moviepy.editor import (
     AudioFileClip, ImageClip, VideoClip, CompositeVideoClip, VideoFileClip
@@ -51,28 +52,51 @@ USED_STOCKS_FILE = "used_stocks.json"
 # -----------------------------------------------------------------------------
 # 1. איתור מניה זזה ברשת
 # -----------------------------------------------------------------------------
+def _get_redis_client():
+  """מייצרת חיבור ל-Upstash Redis מתוך Secrets של Streamlit או משתני סביבה."""
+  url = getattr(st, "secrets", {}).get("UPSTASH_REDIS_REST_URL") or os.getenv(
+      "UPSTASH_REDIS_REST_URL"
+  )
+  token = getattr(st, "secrets", {}).get(
+      "UPSTASH_REDIS_REST_TOKEN"
+  ) or os.getenv("UPSTASH_REDIS_REST_TOKEN")
+  return Redis(url=url, token=token)
+
+
 def get_used_stocks_today():
-    """טוען את רשימת המניות שכבר נעשה בהן שימוש היום. מאפס אם התחלף יום."""
-    today_str = str(date.today())
-    if os.path.exists(USED_STOCKS_FILE):
-        try:
-            with open(USED_STOCKS_FILE, "r") as f:
-                data = json.load(f)
-                if data.get("date") == today_str:
-                    return set(data.get("used", []))
-        except Exception:
-            pass
+  """טוען את רשימת המניות שכבר נעשה בהן שימוש היום מ-Redis (מחזיר set)."""
+  try:
+    redis = _get_redis_client()
+    today_key = f"used_stocks:{date.today()}"
+
+    # smembers מחזיר את כל המניות שרשומות ב-Set של היום
+    members = redis.smembers(today_key)
+    return set(members) if members else set()
+  except Exception as e:
+    print(f"⚠️ Error fetching used stocks from Redis: {e}", flush=True)
     return set()
 
 
 def mark_stock_as_used(ticker_symbol):
-    """רושם את המניה כמשומשת עבור היום הנוכחי"""
-    today_str = str(date.today())
-    used_stocks = get_used_stocks_today()
-    used_stocks.add(ticker_symbol)
+  """רושם את המניה כמשומשת עבור היום הנוכחי ב-Redis"""
+  try:
+    redis = _get_redis_client()
+    today_key = f"used_stocks:{date.today()}"
 
-    with open(USED_STOCKS_FILE, "w") as f:
-        json.dump({"date": today_str, "used": list(used_stocks)}, f)
+    # הוספה ל-Set של היום
+    redis.sadd(today_key, ticker_symbol)
+
+    # הגדרת תוקף למפתח של 48 שעות (172,800 שניות) למניעת עומס עתידי
+    redis.expire(today_key, 172800)
+    print(
+        f"✅ Stock {ticker_symbol} marked as used for {date.today()}",
+        flush=True,
+    )
+  except Exception as e:
+    print(
+        f"⚠️ Error marking stock {ticker_symbol} as used in Redis: {e}",
+        flush=True,
+    )
 
 
 def extract_news_context(news_data, ticker_symbol="", max_articles=3):
