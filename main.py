@@ -358,27 +358,29 @@ def generate_script_and_titles_with_ai(stock_data):
            - "tags" MUST include the ticker, company name, specific stock tags (e.g., AVGO, Broadcom, BroadcomStock), and general investing tags.
 
         2. SCROLL-STOPPING HOOK:
-           - Start instantly with a high-stakes, dramatic statement in the first 2 seconds.
+           - Start instantly with a high-stakes, dramatic statement in the first 2 seconds that calls out the specific stock and its movement.
 
-        3. OPTIMIZED FOR TTS (RETENTION):
+        3. POLARIZING STORYTELLING & MARKET CONTROVERSY (BULL VS. BEAR):
+           - Do NOT just report the news. Frame this stock movement as a massive debate on Wall Street.
+           - Show the tension: Explain why the Bears think this stock is heading for a crash, while the Bulls argue it is a lifetime opportunity.
+           - Focus on big market forces, macro trends, and major institutions (Wall Street, Big Tech, The Fed) rather than obscure individuals.
+
+        4. OPTIMIZED FOR TTS (RETENTION & FLOW):
            - Write purely in natural, spoken English.
            - ABSOLUTELY NO dashes (-), ellipses (...), semicolons (;), or complex formatting that causes Text-To-Speech (TTS) engines to pause awkwardly.
            - Keep punctuation strictly to simple periods and commas for a relentless, fast pace.
 
-        4. INSTITUTIONAL STORYTELLING (NO BORING NAMES):
-           - Focus on big market forces, macro trends, and major institutions (e.g., Wall Street, JPMorgan, Big Tech, The Fed) rather than obscure individuals or random executives.
-           - Deliver dense, high-value financial data in plain, exciting terms.
-
-        5. SUBTLE & NATURAL ENDING:
-           - End with a quick, effortless question that sparks organic debate in the comments, or suggest they turn on notifications / subscribe to never miss daily updates.
+        5. HIGH-ENGAGEMENT BINARY CTA (COMMENT MAGNET):
+           - End the script immediately with an intense, forced binary choice question that triggers emotional responses.
+           - Force the viewer to pick a side in the comments using a simple word choice (e.g., "Is this a massive trap or an easy bargain? Type BUY or SELL in the comments right now!").
 
         6. STRICT OUTPUT FORMAT:
            - Return ONLY a valid JSON object with the following 5 fields:
         {{
           "youtube_title": "High-CTR & Search-Optimized title with TICKER + COMPANY NAME + Emojis",
           "overlay_headline": "2 to 4 WORDS IN ALL CAPS FOR ON-SCREEN OVERLAY (e.g., AVGO HUGE CRASH!)",
-          "voiceover_text": "The full fluid script for narration without TTS glitches",
-          "description": "Short SEO-rich summary incorporating Ticker and Company Name, ending with a call to debate or turn on notifications",
+          "voiceover_text": "The full fluid script for narration with a controversial story beat and binary CTA",
+          "description": "SEO-rich summary with Ticker and Company Name, ending with a strong call to debate in the comments",
           "tags": "5-7 relevant tags separated by commas including Ticker and Full Company Name"
         }}
         """
