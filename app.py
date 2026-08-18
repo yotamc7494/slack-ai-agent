@@ -38,7 +38,9 @@ if "WEBHOOK_TOKEN" in st.query_params:
         st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
         print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
     elif video_type == "ping":
-        print("Wakeup")
+        print("Wakeup", flush=True)
+        st.write("🟢 Keep-Alive Ping Received! Server is awake and ready.")
+        st.stop()
   else:
       st.info("Wrong Token!")
 with col1:
