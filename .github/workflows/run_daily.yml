@@ -2,17 +2,14 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 01:30 שעון ישראל (22:25 UTC) - תמיד VS כי השוק סגור
+    # 1. 01:25 שעון ישראל (22:25 UTC) - תמיד VS כי השוק סגור
     - cron: '25 22 * * *'
-
-    # 2. 15:14 שעון ישראל (11:14 UTC) - כל יום (ביום ראשון מריץ weekly_summery)
-    - cron: '14 11 * * *'
-
-    # 3. 19:33 שעון ישראל (15:25 UTC) - כל יום
-    - cron: '25 15 * * *'
-
-    # 4. 23:22 שעון ישראל (19:21 UTC) - כל יום
-    - cron: '21 19 * * *'
+    # 2. 15:14 שעון ישראל (12:14 UTC) - כל יום (ביום ראשון מריץ weekly_summery)
+    - cron: '14 12 * * *'
+    # 3. 19:25 שעון ישראל (16:25 UTC) - כל יום
+    - cron: '25 16 * * *'
+    # 4. 23:21 שעון ישראל (20:21 UTC) - כל יום
+    - cron: '21 20 * * *'
 
   workflow_dispatch:
     inputs:
@@ -34,13 +31,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
       - name: Install Playwright
         run: |
           pip install playwright
           playwright install chromium
           playwright install-deps chromium
-
       - name: Trigger Streamlit App
         run: |
           python -c "
@@ -52,16 +47,15 @@ jobs:
 
           # 1. בדיקה אם יש אינפוט מהפעלה ידנית
           manual_input = '${{ github.event.inputs.video_type }}'
-
           if manual_input:
               video_type = manual_input
           else:
               # 2. בדיקת זמנים לפי שעון ישראל ושעון ניו יורק
               now_il = datetime.now(ZoneInfo('Asia/Jerusalem'))
               now_et = datetime.now(ZoneInfo('America/New_York'))
-
+              
               is_sunday = now_il.weekday() == 6  # 6 = יום ראשון
-              is_afternoon_run = 15 <= now_il.hour < 16  # הרצת 15:14 / 15:33
+              is_afternoon_run = 15 <= now_il.hour < 16  # עכשיו יתפוס בהרצת 15:14!
 
               # אם זה יום ראשון בהרצה של אחה\"צ -> סרטון סיכום שבועי
               if is_sunday and is_afternoon_run:
@@ -79,7 +73,7 @@ jobs:
 
           url = f'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}&video_type={video_type}'
           print(f'🚀 Opening {url} (Type: {video_type}) in Headless Chrome...')
-
+          
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page()
