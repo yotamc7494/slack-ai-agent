@@ -2,17 +2,14 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 01:30 שעון ישראל (22:25 UTC) - תמיד VS כי השוק סגור
+    # 1. 22:25 UTC (18:25 EDT) -> 01:25 ישראל - שוק סגור (VS)
     - cron: '25 22 * * *'
-
-    # 2. 15:14 שעון ישראל (11:14 UTC) - כל יום (ביום ראשון מריץ weekly_summery)
-    - cron: '14 11 * * *'
-
-    # 3. 19:33 שעון ישראל (15:25 UTC) - כל יום
-    - cron: '25 15 * * *'
-
-    # 4. 23:22 שעון ישראל (19:21 UTC) - כל יום
-    - cron: '21 19 * * *'
+    # 2. 12:14 UTC (08:14 EDT) -> 15:14 ישראל - בוקר (ביום ראשון: weekly_summery)
+    - cron: '14 12 * * *'
+    # 3. 17:25 UTC (13:25 EDT) -> 20:25 ישראל - אמצע מסחר (UPDATE)
+    - cron: '25 17 * * *'
+    # 4. 21:21 UTC (17:21 EDT) -> 00:21 ישראל - סוף מסחר / After Hours (UPDATE)
+    - cron: '21 21 * * *'
 
   workflow_dispatch:
     inputs:
@@ -34,13 +31,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
       - name: Install Playwright
         run: |
           pip install playwright
           playwright install chromium
           playwright install-deps chromium
-
       - name: Trigger Streamlit App
         run: |
           python -c "
@@ -52,30 +47,27 @@ jobs:
 
           # 1. בדיקה אם יש אינפוט מהפעלה ידנית
           manual_input = '${{ github.event.inputs.video_type }}'
-
           if manual_input:
               video_type = manual_input
           else:
-              # 2. בדיקת זמנים לפי שעון ישראל ושעון ניו יורק
-              now_il = datetime.now(ZoneInfo('Asia/Jerusalem'))
+              # 2. בדיקת זמנים לפי שעון ניו יורק (ET)
               now_et = datetime.now(ZoneInfo('America/New_York'))
 
-              is_sunday = now_il.weekday() == 6  # 6 = יום ראשון
-              is_afternoon_run = 15 <= now_il.hour < 16  # הרצת 15:14 / 15:33
+              is_sunday = now_et.weekday() == 6  # 6 = יום ראשון ב-NY
+              is_morning_run = 6 <= now_et.hour <= 9
 
-              # אם זה יום ראשון בהרצה של אחה\"צ -> סרטון סיכום שבועי
-              if is_sunday and is_afternoon_run:
+              # אם זה יום ראשון בבוקר בניו יורק -> סרטון סיכום שבועי
+              if is_sunday and is_morning_run:
                   video_type = 'weekly_summery'
               else:
-                  # בדיקת סטטוס מסחר רגיל לפי שעון ניו יורק
+                  # בדיקה אם יום חול ובטווח 09:30 עד 18:00 בשעון ניו יורק (כולל מסחר ונעילה)
                   is_weekend = now_et.weekday() >= 5  # 5 = שבת, 6 = ראשון
-                  is_trading_hours = dtime(9, 30) <= now_et.time() < dtime(16, 0)
-                  is_market_open = (not is_weekend) and is_trading_hours
-
-                  if not is_market_open:
-                      video_type = 'vs_video'
-                  else:
+                  is_update_window = dtime(9, 30) <= now_et.time() < dtime(18, 0)
+                  
+                  if (not is_weekend) and is_update_window:
                       video_type = 'update_video'
+                  else:
+                      video_type = 'vs_video'
 
           url = f'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}&video_type={video_type}'
           print(f'🚀 Opening {url} (Type: {video_type}) in Headless Chrome...')
