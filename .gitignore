@@ -18,6 +18,7 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+generate_token.py
 
 # --- הגדרות סביבת עבודה וסביבת מערכת ---
 .idea/
