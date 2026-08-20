@@ -2,13 +2,13 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 22:25 UTC (18:25 EDT) -> 01:25 ישראל - שוק סגור (VS)
+    # 1. 22:25 UTC -> 01:25 ישראל (18:25 EDT) - VS
     - cron: '25 22 * * *'
-    # 2. 12:14 UTC (08:14 EDT) -> 15:14 ישראל - בוקר (ביום ראשון: weekly_summery)
+    # 2. 12:14 UTC -> 15:14 ישראל (08:14 EDT) - בוקר (ביום ראשון: weekly_summery, בשאר הימים: VS)
     - cron: '14 12 * * *'
-    # 3. 17:25 UTC (13:25 EDT) -> 20:25 ישראל - אמצע מסחר (UPDATE)
+    # 3. 17:25 UTC -> 20:25 ישראל (13:25 EDT) - VS
     - cron: '25 17 * * *'
-    # 4. 21:21 UTC (17:21 EDT) -> 00:21 ישראל - סוף מסחר / After Hours (UPDATE)
+    # 4. 21:21 UTC -> 00:21 ישראל (17:21 EDT) - VS
     - cron: '21 21 * * *'
 
   workflow_dispatch:
@@ -20,7 +20,6 @@ on:
         type: choice
         options:
           - vs_video
-          - update_video
           - weekly_summery
 
 jobs:
@@ -41,7 +40,7 @@ jobs:
           python -c "
           import os
           import time
-          from datetime import datetime, time as dtime
+          from datetime import datetime
           from zoneinfo import ZoneInfo
           from playwright.sync_api import sync_playwright
 
@@ -54,20 +53,13 @@ jobs:
               now_et = datetime.now(ZoneInfo('America/New_York'))
 
               is_sunday = now_et.weekday() == 6  # 6 = יום ראשון ב-NY
-              is_morning_run = 6 <= now_et.hour <= 9
+              is_morning_run = 6 <= now_et.hour <= 9  # תופס את הרצת 15:14 ישראל / 08:14 NY
 
-              # אם זה יום ראשון בבוקר בניו יורק -> סרטון סיכום שבועי
+              # אם זה יום ראשון בהרצת הבוקר -> סרטון סיכום שבועי, אחרת תמיד VS
               if is_sunday and is_morning_run:
                   video_type = 'weekly_summery'
               else:
-                  # בדיקה אם יום חול ובטווח 09:30 עד 18:00 בשעון ניו יורק (כולל מסחר ונעילה)
-                  is_weekend = now_et.weekday() >= 5  # 5 = שבת, 6 = ראשון
-                  is_update_window = dtime(9, 30) <= now_et.time() < dtime(18, 0)
-                  
-                  if (not is_weekend) and is_update_window:
-                      video_type = 'update_video'
-                  else:
-                      video_type = 'vs_video'
+                  video_type = 'vs_video'
 
           url = f'https://slack-ai-agent-xt3nrfdfzjxsupyxdlncnm.streamlit.app/?WEBHOOK_TOKEN=${{ secrets.WEBHOOK_TOKEN }}&video_type={video_type}'
           print(f'🚀 Opening {url} (Type: {video_type}) in Headless Chrome...')
