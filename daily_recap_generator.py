@@ -711,8 +711,15 @@ def build_full_daily_video(
     # === חלק 5: רינדור סופי לקובץ ===
     logger.info(f"💾 כותב קובץ וידאו סופי: {output_filename}...")
     final_video_clip.write_videofile(
-        output_filename, fps=30, codec="libx264", audio_codec="aac", logger="bar"
-    )
+            output_filename,
+            fps=30,
+            codec="libx264",
+            audio_codec="aac",
+            bitrate="8000k",
+            logger=None,
+            threads=1,
+            preset="ultrafast",
+        )
 
     # === חלק 6: יצירת Thumbnail יומי והעלאה ===
     img_path = generate_daily_thumbnail(
