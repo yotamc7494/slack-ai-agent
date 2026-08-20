@@ -2,14 +2,14 @@ name: Trigger Streamlit Webhook 4x Daily
 
 on:
   schedule:
-    # 1. 22:25 UTC -> 01:25 ישראל (18:25 EDT) - VS
-    - cron: '25 22 * * *'
-    # 2. 12:14 UTC -> 15:14 ישראל (08:14 EDT) - בוקר (ביום ראשון: weekly_summery, בשאר הימים: VS)
+    # 1. 12:14 UTC -> 08:14 EDT (15:14 ישראל) - בוקר (ביום ראשון: weekly_summery, בשאר הימים: vs_video)
     - cron: '14 12 * * *'
-    # 3. 17:25 UTC -> 20:25 ישראל (13:25 EDT) - VS
+    # 2. 17:25 UTC -> 13:25 EDT (20:25 ישראל) - באמצע המסחר (vs_video)
     - cron: '25 17 * * *'
-    # 4. 21:21 UTC -> 00:21 ישראל (17:21 EDT) - VS
+    # 3. 21:21 UTC -> 17:21 EDT (00:21 ישראל) - סגירת מסחר (daily_summery בימי מסחר)
     - cron: '21 21 * * *'
+    # 4. 22:25 UTC -> 18:25 EDT (01:25 ישראל) - לאחר סגירת מסחר (חוזר ל-vs_video)
+    - cron: '25 22 * * *'
 
   workflow_dispatch:
     inputs:
@@ -20,6 +20,7 @@ on:
         type: choice
         options:
           - vs_video
+          - daily_summery
           - weekly_summery
 
 jobs:
@@ -51,12 +52,17 @@ jobs:
           else:
               # 2. בדיקת זמנים לפי שעון ניו יורק (ET)
               now_et = datetime.now(ZoneInfo('America/New_York'))
+              weekday = now_et.weekday()  # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
 
-              is_sunday = now_et.weekday() == 6  # 6 = יום ראשון ב-NY
-              is_morning_run = 6 <= now_et.hour <= 9  # תופס את הרצת 15:14 ישראל / 08:14 NY
+              is_trading_day = weekday < 5                  # שני עד שישי
+              is_sunday = weekday == 6                      # יום ראשון ב-NY
+              is_morning_run = 6 <= now_et.hour <= 9        # הרצת הבוקר (08:14 NY)
+              is_close_run = now_et.hour == 17              # הרצת סגירת המסחר בלבד (17:21 NY)
 
-              # אם זה יום ראשון בהרצת הבוקר -> סרטון סיכום שבועי, אחרת תמיד VS
-              if is_sunday and is_morning_run:
+              # קביעת סוג הסרטון
+              if is_trading_day and is_close_run:
+                  video_type = 'daily_summery'
+              elif is_sunday and is_morning_run:
                   video_type = 'weekly_summery'
               else:
                   video_type = 'vs_video'
