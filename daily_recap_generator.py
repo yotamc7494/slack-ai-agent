@@ -11,6 +11,7 @@ from email.utils import parsedate_to_datetime
 
 import numpy as np
 import pandas as pd
+import requests
 import yfinance as yf
 from scipy.interpolate import make_interp_spline
 import matplotlib.pyplot as plt
@@ -319,47 +320,130 @@ def select_top_stocks_of_the_day(count=6):
     return final_selection
 
 
+def get_yahoo_quote_direct(ticker):
+    """שולפת מטא-דאטה ישירות מ-v7 Quote API כדי לעקוף חסימות Cloud IP של yfinance.info."""
+    url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={ticker}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            results = resp.json().get("quoteResponse", {}).get("result", [])
+            if results:
+                return results[0]
+    except Exception as e:
+        logger.warning(f"Direct quote fetch failed for {ticker}: {e}")
+    return {}
+
+
+def get_analyst_data_direct(ticker):
+    """שולפת מפת דירוג ומספר אנליסטים מ-quoteSummary API של Yahoo."""
+    url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=financialData,recommendationTrend"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    num_analysts = "No Official Data"
+    recommendation = "No Official Data"
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            result = resp.json().get("quoteSummary", {}).get("result", [])
+            if result:
+                res = result[0]
+                fin_data = res.get("financialData", {})
+
+                # 1. חילוץ ישיר מ-financialData
+                num = fin_data.get("numberOfAnalystRecommendations", {}).get("raw")
+                if num is not None:
+                    num_analysts = int(num)
+
+                rec_raw = fin_data.get("recommendationKey")
+                if rec_raw and str(rec_raw).upper() != "NONE":
+                    recommendation = str(rec_raw).upper()
+
+                # 2. גיבוי: אם המקור הראשון ריק, סכימה מתוך recommendationTrend
+                if num_analysts == "No Official Data":
+                    trends = res.get("recommendationTrend", {}).get("trend", [])
+                    if trends:
+                        current = trends[0]
+                        total = sum([
+                            current.get("strongBuy", 0),
+                            current.get("buy", 0),
+                            current.get("hold", 0),
+                            current.get("sell", 0),
+                            current.get("strongSell", 0)
+                        ])
+                        if total > 0:
+                            num_analysts = total
+    except Exception as e:
+        logger.warning(f"Analyst data fetch failed for {ticker}: {e}")
+
+    return num_analysts, recommendation
+
+
 def fetch_daily_stock_full_context(ticker, preloaded_df=None):
     t = yf.Ticker(ticker)
     df_ohlc = preloaded_df if (preloaded_df is not None and not preloaded_df.empty) else t.history(period="1d", interval="5m")
 
-    info, fast_info = {}, {}
+    # 1. ניסיון שליפה מ-yfinance
+    info = {}
     try:
         info = t.info or {}
     except Exception:
         pass
-    try:
-        fast_info = t.fast_info or {}
-    except Exception:
-        pass
 
-    company_name = info.get("shortName") or info.get("longName") or fast_info.get("companyName") or ticker
+    # 2. מעקף חסימה ב-Streamlit Cloud במידה ו-info ריק
+    if not info or "marketCap" not in info:
+        direct_data = get_yahoo_quote_direct(ticker)
+        info.update(direct_data)
 
-    # 1. חישוב מחירים והמרה ל-float נקי
+    company_name = info.get("shortName") or info.get("longName") or ticker
+
+    # 3. מחירים
     if not df_ohlc.empty:
         open_price = float(df_ohlc["Open"].iloc[0])
         current_price = float(df_ohlc["Close"].iloc[-1])
     else:
-        current_price = float(fast_info.get("lastPrice", 0.0))
-        open_price = float(fast_info.get("previousClose", current_price))
+        current_price = float(info.get("regularMarketPrice", 0.0))
+        open_price = float(info.get("regularMarketPreviousClose", current_price))
 
     pct_change = float(((current_price - open_price) / open_price) * 100) if open_price != 0 else 0.0
 
-    # 2. חילוץ Market Cap
-    mcap_val = fast_info.get("market_cap") or info.get("marketCap")
+    # 4. חילוץ נתוני שוק
+    mcap_val = info.get("marketCap")
     market_cap_str = format_large_number(mcap_val) if mcap_val else "N/A"
 
-    # 3. חילוץ מדדים פונדמנטליים עם נפילה זהירה
     pe_val = info.get("trailingPE") or info.get("forwardPE")
     pe_str = f"{float(pe_val):.1f}" if pe_val else "N/A"
 
-    eps_val = info.get("trailingEps")
+    eps_val = info.get("epsTrailingTwelveMonths") or info.get("trailingEps")
     eps_str = f"${float(eps_val):.2f}" if eps_val else "N/A"
 
+    # מחיר יעד של אנליסטים
     target_price = info.get("targetMeanPrice")
-    target_price_str = f"${float(target_price):.2f}" if target_price else "N/A"
+    target_price_str = f"${float(target_price):.2f}" if target_price else "No Official Data"
 
-    # 4. חדשות
+    # 5. חילוץ נתוני אנליסטים
+    num_analysts = info.get("numberOfAnalystRecommendations") or info.get("analystRatingCount")
+    recommendation = info.get("recommendationKey")
+
+    if not num_analysts or num_analysts == "N/A":
+        num_analysts, direct_rec = get_analyst_data_direct(ticker)
+        if not recommendation or recommendation == "N/A":
+            recommendation = direct_rec
+
+    # ברירת מחדל במידה ומידע האנליסטים נשאר ריק
+    if not num_analysts or num_analysts in ["N/A", "None"]:
+        num_analysts = "No Official Data"
+
+    if not recommendation or str(recommendation).upper() in ["N/A", "NONE"]:
+        recommendation_str = "No Official Data"
+    else:
+        recommendation_str = str(recommendation).upper()
+
+    # 6. חדשות מ-Google News RSS
     news_headlines = []
     try:
         url = f"https://news.google.com/rss/search?q={ticker}+stock+when:1d&hl=en-US&gl=US&ceid=US:en"
@@ -382,8 +466,8 @@ def fetch_daily_stock_full_context(ticker, preloaded_df=None):
         "pe": pe_str,
         "eps": eps_str,
         "target_price": target_price_str,
-        "recommendation": (info.get("recommendationKey") or "N/A").upper(),
-        "num_analysts": info.get("numberOfAnalystRecommendations", "N/A"),
+        "recommendation": recommendation_str,
+        "num_analysts": num_analysts,
         "news_context": "\n".join([f"- {h}" for h in news_headlines] or ["No headline today."]),
     }
 
@@ -716,3 +800,6 @@ def build_full_daily_video(
                     logger.warning(f"⚠️ לא ניתן למחוק קובץ זמני {temp_file}: {e}")
 
     return output_filename
+
+if __name__ == "__main__":
+    build_full_daily_video(upload=False)
