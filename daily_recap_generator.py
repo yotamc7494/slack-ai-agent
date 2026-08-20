@@ -469,7 +469,7 @@ def render_single_stock_clip(stock_data, queued_stocks=[], duration=20.0, fps=30
 
     # --- 1. תצוגת 3 המניות הבאות למעלה (Queue Panel) ---
     queue_box_positions = [[0.05, 0.81, 0.27, 0.15], [0.36, 0.81, 0.27, 0.15], [0.67, 0.81, 0.27, 0.15]]
-
+    print(stock_data)
     for i in range(3):
         box_ax = fig.add_axes(queue_box_positions[i])
         box_ax.set_facecolor('#161B22')
@@ -757,4 +757,3 @@ def build_full_daily_video(
           logger.warning(f"⚠️ לא ניתן למחוק קובץ זמני {temp_file}: {e}")
 
   return output_filename
-
