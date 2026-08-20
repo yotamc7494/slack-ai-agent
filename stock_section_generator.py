@@ -405,7 +405,7 @@ def generate_stocks_section_video(
   except Exception as e:
     logger.error(f"Failed batch download: {e}")
     batch_ohlc = None
-
+  thumbnail_data = []
   clips = []
   figs_to_close = []
   first = True
@@ -427,7 +427,10 @@ def generate_stocks_section_video(
 
     # שליפת ההקשר המלא עם ה-Dataframe המוכן מראש
     stock_data = fetch_stock_full_context(ticker, preloaded_df=ticker_df)
-
+    thumbnail_data.append({
+        'ticker': ticker,
+        'pct_change': stock_data['pct_change']
+    })
     script = generate_stock_ai_script(stock_data)
 
     if first:
@@ -460,14 +463,14 @@ def generate_stocks_section_video(
   final_stocks_clip = concatenate_videoclips(clips)
 
   print("   ✅ ייצור סקציית המניות הושלם בהצלחה ב-RAM!")
-  return final_stocks_clip, figs_to_close
+  return final_stocks_clip, figs_to_close, thumbnail_data
 
 # ---------------------------------------------------------
 # הרצה ראשית לבדיקת סקציית המניות
 # ---------------------------------------------------------
 if __name__ == "__main__":
     top_stocks = select_top_stocks_of_the_week(count=6)
-    stocks_clip, figs = generate_stocks_section_video(top_stocks, duration_per_stock=20.0, fps=30)
+    stocks_clip, figs, _ = generate_stocks_section_video(top_stocks, duration_per_stock=20.0, fps=30)
     output_filename = "stocks_breakdown_section.mp4"
     stocks_clip.write_videofile(
         output_filename,

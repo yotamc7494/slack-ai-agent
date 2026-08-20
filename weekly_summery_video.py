@@ -11,7 +11,7 @@ from moviepy.editor import (
     concatenate_videoclips,
 )
 from outro_generator import generate_outro_clip
-from thumbnail import generate_simple_thumbnail
+from thumbnail import generate_weekly_thumbnail
 from uploader import upload_video
 
 # ייבוא הפונקציות מהמודולים שיצרת
@@ -134,190 +134,200 @@ def build_full_weekly_video(
     output_filename="Weekly_Market_Summary.mp4",
     num_stocks=6,
 ):
-  print("==================================================")
-  print("🎬 מתחיל תהליך הפקת סרטון הסיכום השבועי המלא...")
-  print("==================================================\n")
+    print("==================================================")
+    print("🎬 מתחיל תהליך הפקת סרטון הסיכום השבועי המלא...")
+    print("==================================================\n")
 
-  cleanups = []
-  figs_to_close = []
-  clips_to_close = []
+    cleanups = []
+    figs_to_close = []
+    clips_to_close = []
 
-  try:
-    # --- חלק 1: סיכום מדדים ---
-    print("[1/4] 📈 מפיק את סקציית המדדים...")
-    market_data = fetch_market_data(target_points=1000)
-    news = get_macro_news_events()
-    ai_content = generate_market_recap_ai_content(market_data, news)
+    try:
+        # --- חלק 1: סיכום מדדים ---
+        print("[1/4] 📈 מפיק את סקציית המדדים...")
+        market_data = fetch_market_data(target_points=1000)
+        news = get_macro_news_events()
+        ai_content = generate_market_recap_ai_content(market_data, news)
 
-    index_script = ai_content["narration_script"]
-    youtube_title = ai_content.get("youtube_title", "Weekly_Market_Recap")
+        index_script = ai_content["narration_script"]
+        youtube_title = ai_content.get("youtube_title", "Weekly_Market_Recap")
 
-    # חילוץ שינוי שבועי אמיתי עבור ה-Thumbnail
-    sp500_change = market_data.get("sp500_pct_change", 0.0)
+        # חילוץ שינוי שבועי אמיתי עבור ה-Thumbnail
+        sp500_change = market_data.get("sp500_pct_change", 0.0)
 
-    index_audio_file = generate_voiceover_audio(
-        index_script, output_path="temp_index_narration.mp3"
-    )
-    cleanups.append(index_audio_file)
+        index_audio_file = generate_voiceover_audio(
+            index_script, output_path="temp_index_narration.mp3"
+        )
+        cleanups.append(index_audio_file)
 
-    index_clip = generate_market_video(
-        market_data, news, audio_path=index_audio_file
-    )
-    clips_to_close.append(index_clip)
+        index_clip = generate_market_video(
+            market_data, news, audio_path=index_audio_file
+        )
+        clips_to_close.append(index_clip)
 
-    # --- חלק 2: מה יהיה השבוע ---
-    print("\n[2/4] 📅 מפיק את סקציית התחזית השבועית...")
-    upcoming_clip, _ = generate_upcoming_week_clip()
-    clips_to_close.append(upcoming_clip)
-    cleanups.extend([
-        "temp_upcoming_narration.mp3",
-        "temp_macro_narration.mp3",
-        "temp_earnings_narration.mp3",
-        "temp_fng_narration.mp3",
-    ])
+        # --- חלק 2: מה יהיה השבוע ---
+        print("\n[2/4] 📅 מפיק את סקציית התחזית השבועית...")
+        upcoming_clip, _ = generate_upcoming_week_clip()
+        clips_to_close.append(upcoming_clip)
+        cleanups.extend([
+            "temp_upcoming_narration.mp3",
+            "temp_macro_narration.mp3",
+            "temp_earnings_narration.mp3",
+            "temp_fng_narration.mp3",
+        ])
 
-    # --- חלק 3: פירוט מניות ---
-    print("\n[3/4] 📊 מפיק את סקציית ניתוח המניות...")
-    top_stocks = select_top_stocks_of_the_week(count=num_stocks)
-    stocks_clip, figs = generate_stocks_section_video(
-        top_stocks, duration_per_stock=20.0, fps=30
-    )
-    clips_to_close.append(stocks_clip)
-    figs_to_close.extend(figs)
+        # --- חלק 3: פירוט מניות ---
+        print("\n[3/4] 📊 מפיק את סקציית ניתוח המניות...")
+        top_stocks = select_top_stocks_of_the_week(count=num_stocks)
 
-    for ticker in top_stocks:
-      cleanups.append(f"narration_{ticker}.mp3")
+        # חילוץ טיקרים למקרה ש-top_stocks מכיל אובייקטים/דיקשנריז
+        top_tickers = [
+            s.get("ticker", s) if isinstance(s, dict) else str(s)
+            for s in top_stocks
+        ]
 
-    # --- חלק 4: מסך סיום (Outro & Call to Action) ---
-    print(
-        "\n[4/4] 🔔 מוסיף מסך סיום להנעה לפעולה (Outro)...", flush=True
-    )
-    outro_clip = generate_outro_clip(duration=5.0)
-    clips_to_close.append(outro_clip)
+        stocks_clip, figs, stocks_thumbnail_data = generate_stocks_section_video(
+            top_stocks, duration_per_stock=20.0, fps=30
+        )
+        clips_to_close.append(stocks_clip)
+        figs_to_close.extend(figs)
 
-    # --- 5. שרשור כל 4 החלקים ברצף ב-1080p ---
-    print("\n🔗 משרשר את כל סקציות הווידאו...")
-    index_clip_res = index_clip.resize((1920, 1080))
-    upcoming_clip_res = upcoming_clip.resize((1920, 1080))
-    stocks_clip_res = stocks_clip.resize((1920, 1080))
-    outro_clip_res = outro_clip.resize((1920, 1080))
+        for ticker in top_tickers:
+            cleanups.append(f"narration_{ticker}.mp3")
 
-    final_video_clip = concatenate_videoclips([
-        index_clip_res,
-        upcoming_clip_res,
-        stocks_clip_res,
-        outro_clip_res,
-    ])
-    clips_to_close.append(final_video_clip)
-    total_duration = final_video_clip.duration
+        # --- חלק 4: מסך סיום (Outro & Call to Action) ---
+        print("\n[4/4] 🔔 מוסיף מסך סיום להנעה לפעולה (Outro)...", flush=True)
+        outro_clip = generate_outro_clip(duration=5.0)
+        clips_to_close.append(outro_clip)
 
-    # --- 6. בילד לתיאור מפורט עם Timestamps ---
-    formatted_description = inject_timestamps_to_description(
-        ai_description=ai_content.get("description", ""),
-        top_tickers=top_stocks,
-        intro_duration=index_clip.duration,
-        upcoming_duration=upcoming_clip.duration,
-        stocks_duration=stocks_clip.duration,
-        outro_duration=outro_clip.duration,
-    )
+        # --- 5. שרשור כל 4 החלקים ברצף ב-1080p ---
+        print("\n🔗 משרשר את כל סקציות הווידאו...")
+        index_clip_res = index_clip.resize((1920, 1080))
+        upcoming_clip_res = upcoming_clip.resize((1920, 1080))
+        stocks_clip_res = stocks_clip.resize((1920, 1080))
+        outro_clip_res = outro_clip.resize((1920, 1080))
 
-    # --- 7. המוזיקה + עמעום בסיום (Fade Out) ---
-    if os.path.exists(bg_music_path):
-      print(
-          f"\n🎵 מעבד מוזיקת רקע מ: {bg_music_path} עם Fade Out בסיום...",
-          flush=True,
-      )
-      bg_music = AudioFileClip(bg_music_path)
+        final_video_clip = concatenate_videoclips([
+            index_clip_res,
+            upcoming_clip_res,
+            stocks_clip_res,
+            outro_clip_res,
+        ])
+        clips_to_close.append(final_video_clip)
+        total_duration = final_video_clip.duration
 
-      if bg_music.duration < total_duration:
-        bg_music = afx.audio_loop(bg_music, duration=total_duration)
-      else:
-        bg_music = bg_music.subclip(0, total_duration)
+        # --- 6. בילד לתיאור מפורט עם Timestamps ---
+        formatted_description = inject_timestamps_to_description(
+            ai_description=ai_content.get("description", ""),
+            top_tickers=top_tickers,
+            intro_duration=index_clip.duration,
+            upcoming_duration=upcoming_clip.duration,
+            stocks_duration=stocks_clip.duration,
+            outro_duration=outro_clip.duration,
+        )
 
-      bg_music = bg_music.volumex(0.12).audio_fadeout(2.5)
+        # --- 7. המוזיקה + עמעום בסיום (Fade Out) ---
+        if os.path.exists(bg_music_path):
+            print(
+                f"\n🎵 מעבד מוזיקת רקע מ: {bg_music_path} עם Fade Out בסיום...",
+                flush=True,
+            )
+            bg_music = AudioFileClip(bg_music_path)
 
-      combined_audio = CompositeAudioClip([final_video_clip.audio, bg_music])
-      final_video_clip = final_video_clip.set_audio(combined_audio)
+            if bg_music.duration < total_duration:
+                bg_music = afx.audio_loop(bg_music, duration=total_duration)
+            else:
+                bg_music = bg_music.subclip(0, total_duration)
 
-    # --- 8. שמירת הקובץ הסופי ---
-    print(
-        f"\n💾 מקרן ושומר את הסרטון המלא: {youtube_title}...", flush=True
-    )
-    final_video_clip.write_videofile(
-        output_filename,
-        fps=30,
-        codec="libx264",
-        audio_codec="aac",
-        bitrate="8000k",  # שומר על איכות 1080p חדה
-        logger=None,
-        threads=1,
-        preset="ultrafast",
-    )
+            # תיקון קריאות אפקטים ב-MoviePy
+            bg_music = afx.volumex(bg_music, 0.12)
+            bg_music = afx.audio_fadeout(bg_music, 2.5)
 
-    print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {output_filename}")
+            combined_audio = CompositeAudioClip([final_video_clip.audio, bg_music])
+            final_video_clip = final_video_clip.set_audio(combined_audio)
 
-    return (
-        output_filename,
-        youtube_title,
-        formatted_description,
-        ai_content.get("tags", []),
-        top_stocks,
-        sp500_change,
-    )
+        # --- 8. שמירת הקובץ הסופי ---
+        print(f"\n💾 מקרן ושומר את הסרטון המלא: {youtube_title}...", flush=True)
+        #final_video_clip.write_videofile(
+        #    output_filename,
+        #    fps=30,
+        #    codec="libx264",
+        #    audio_codec="aac",
+        #    bitrate="8000k",
+        #    logger=None,
+        #    threads=1,
+        #    preset="ultrafast",
+        #)
 
-  finally:
-    print("\n🧹 מנקה קבצים זמניים ומשאבים...")
-    # סגירת תמונות Matplotlib
-    for fig in figs_to_close:
-      try:
-        plt.close(fig)
-      except Exception:
-        pass
+        print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {output_filename}")
 
-    # סגירת קליפים של MoviePy לשחרור זיכרון RAM
-    for clip in clips_to_close:
-      try:
-        clip.close()
-      except Exception:
-        pass
+        date_range_str = get_formatted_today()
 
-    # ניקוי קבצי סאונד זמניים
-    for file_path in set(cleanups):
-      if os.path.exists(file_path):
-        try:
-          os.remove(file_path)
-        except Exception:
-          pass
+        return (
+            output_filename,
+            youtube_title,
+            formatted_description,
+            ai_content.get("tags", []),
+            stocks_thumbnail_data,
+            sp500_change,
+            date_range_str,
+        )
+
+    finally:
+        print("\n🧹 מנקה קבצים זמניים ומשאבים...")
+        for fig in figs_to_close:
+            try:
+                plt.close(fig)
+            except Exception:
+                pass
+
+        for clip in clips_to_close:
+            try:
+                clip.close()
+            except Exception:
+                pass
+
+        for file_path in set(cleanups):
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
 
 
 def generate_and_upload_video(upload=True):
-  (
-      filename,
-      title,
-      v_description,
-      tags,
-      top_tickers,
-      sp500_weekly_change,
-  ) = build_full_weekly_video(
-      bg_music_path="assets/weekly_recup_music.mp3",
-      output_filename="Weekly_Market_Summary.mp4",
-      num_stocks=6,
-  )
-
-  if upload:
-    img_path = generate_simple_thumbnail(
-        sp500_weekly_change=sp500_weekly_change,  # מעביר את הנתון האמיתי
-        date_str=get_formatted_today(),
-        top_tickers=top_tickers,
-        output_path="thumbnail.png",
-    )
-    upload_video(
+    (
         filename,
         title,
         v_description,
         tags,
-        thumbnail_path=img_path,
-        privacy_status="private",
+        stocks_thumbnail_data,
+        sp500_weekly_change,
+        date_range_str,
+    ) = build_full_weekly_video(
+        bg_music_path="assets/weekly_recup_music.mp3",
+        output_filename="Weekly_Market_Summary.mp4",
+        num_stocks=6,
     )
 
-  return filename
+    # יצירת ה-Thumbnail השבועי עם הפרמטרים המעודכנים
+    img_path = generate_weekly_thumbnail(
+        stocks_list=stocks_thumbnail_data,
+        date_range_str=date_range_str,
+        template_path="assets/Thumbnail_Weekly.jpg",
+        output_path="thumbnail.png",
+    )
+
+    if upload:
+        upload_video(
+            filename,
+            title,
+            v_description,
+            tags,
+            thumbnail_path=img_path,
+        )
+
+    return filename
+
+if __name__ == "__main__":
+    generate_and_upload_video(upload=False)

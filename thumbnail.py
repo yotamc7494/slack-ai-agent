@@ -1,5 +1,6 @@
 import os
 from PIL import Image, ImageDraw, ImageFont
+from datetime import datetime, timedelta
 
 
 def load_system_font(size):
@@ -43,65 +44,112 @@ def load_system_font(size):
     return ImageFont.load_default()
 
 
-def generate_simple_thumbnail(
-    sp500_weekly_change,
-    date_str,
-    top_tickers,
-    output_path="youtube_thumbnail.png",
+def generate_daily_thumbnail(
+        sp500_val, sp500_pct,
+        qqq_val, qqq_pct,
+        btc_val, btc_pct,
+        date_str=None,  # תאריך אופציונלי. אם לא מועבר - מחושב אוטומטית
+        template_path="assets/Thumbnail_Daily.jpg",
+        output_path="youtube_thumbnail_daily.png"
 ):
-  """מייצר תמונה ממוזערת מורכבת מבוססת תבנית עם טקסט מעודכן."""
-  # 1. בחירת הטמפלייט המורכב לפי סנטימנט השוק
-  if sp500_weekly_change >= 0:
-    template_path = "assets/template_bullish.jpeg"
-    change_text = f"+{sp500_weekly_change:.2f}%"
-  else:
-    template_path = "assets/template_bearish.jpeg"
-    change_text = f"{sp500_weekly_change:.2f}%"
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"⚠️ קובץ התבנית {template_path} לא נמצא.")
 
-  if not os.path.exists(template_path):
-    raise FileNotFoundError(
-        f"⚠️ קובץ התבנית {template_path} לא נמצא. וודא שהוא קיים."
-    )
+    img = Image.open(template_path).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
 
-  img = Image.open(template_path).convert("RGB")
-  draw = ImageDraw.Draw(img)
+    # 1. חישוב תאריך יומי במידה ולא הועבר
+    if not date_str:
+        date_str = datetime.now().strftime("%B %d, %Y")  # למשל: August 20, 2026
 
-  # 2. טעינת פונטים בצורה עמידה לכל סביבת הרצה
-  font_large = load_system_font(65)
-  font_medium = load_system_font(50)
+    # 2. הוספת התאריך מתחת לכותרת DAILY RECAP (בצבע תכלת ניאון)
+    font_date = load_system_font(int(h * 0.038))
+    draw.text((w * 0.5, h * 0.29), date_str.upper(), font=font_date, fill=(255, 255, 255), anchor="mm")
 
-  # 3. הכנת הטקסט
-  line1_text = f"{date_str}"
+    # 3. הוספת הנתונים בטבלה
+    font_val = load_system_font(int(h * 0.055))
 
-  # 4. חישוב מיקומים בתוך המסגרת השחורה
-  line1_y = 100
-  line2_y = 330
-  start_x = 100
+    rows = [
+        (f"${sp500_val:,.2f}", sp500_pct, 0.508),  # S&P500
+        (f"${qqq_val:,.2f}", qqq_pct, 0.683),  # Nasdaq
+        (f"${btc_val:,.0f}", btc_pct, 0.858)  # BitCoin
+    ]
 
-  # 5. ציור הטקסטים
-  draw.text(
-      (start_x, line1_y), line1_text, font=font_large, fill=(255, 255, 255)
-  )
+    x_val_center = w * 0.523  # מרכז תא הערך (אמצע)
+    x_pct_center = w * 0.785  # מרכז תא האחוזים (ימין)
 
-  change_color = (
-      (0, 255, 163) if sp500_weekly_change > 0 else (255, 51, 102)
-  )
-  draw.text(
-      (start_x + 100, line1_y + 100),
-      change_text,
-      font=font_large,
-      fill=change_color,
-  )
+    for val_str, pct_val, y_rel in rows:
+        y_pos = h * y_rel
 
-  for i in range(min(3, len(top_tickers))):
-    draw.text(
-        (start_x + 150, line2_y + i * 120),
-        top_tickers[i],
-        font=font_medium,
-        fill=(255, 255, 255),
-    )
+        # כתיבת המחיר/ערך (לבן)
+        draw.text((x_val_center, y_pos), val_str, font=font_val, fill=(255, 255, 255), anchor="mm")
 
-  # 6. שמירה
-  img.save(output_path)
-  print(f"📸 Thumbnail נוצר בהצלחה מ-Template המורכב: {template_path}")
-  return output_path
+        # כתיבת אחוז השינוי (ירוק/אדום)
+        pct_str = f"{pct_val:+.2f}%"
+        color = (0, 255, 163) if pct_val >= 0 else (255, 51, 102)
+        draw.text((x_pct_center, y_pos), pct_str, font=font_val, fill=color, anchor="mm")
+
+    img.save(output_path)
+    print(f"📸 Daily Thumbnail נוצר בהצלחה: {output_path}")
+    return output_path
+
+
+# ---------------------------------------------------------
+# 2. תמונה ממוזערת לסיכום שבועי (Weekly Thumbnail)
+# ---------------------------------------------------------
+def generate_weekly_thumbnail(
+        stocks_list,  # רשימה של עד 6 דיקשנריז: [{'ticker': 'NVDA', 'pct_change': 4.5}, ...]
+        date_range_str=None,  # טווח תאריכים אופציונלי. אם לא מועבר - מחושב אוטומטית (שני עד שישי)
+        template_path="assets/Thumbnail_Weekly.jpg",
+        output_path="youtube_thumbnail_weekly.png"
+):
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"⚠️ קובץ התבנית {template_path} לא נמצא.")
+
+    img = Image.open(template_path).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
+
+    # 1. חישוב טווח ימי המסחר לשבוע (שני עד שישי) במידה ולא הועבר
+    if not date_range_str:
+        today = datetime.now()
+        monday = today - timedelta(days=today.weekday())
+        friday = monday + timedelta(days=4)
+        date_range_str = f"{monday.strftime('%b %d')} - {friday.strftime('%b %d, %Y')}"  # למשל: AUG 17 - AUG 21, 2026
+
+    # 2. הוספת טווח התאריכים השבועי מתחת לכותרת WEEKLY RECAP
+    font_date = load_system_font(int(h * 0.038))
+    draw.text((w * 0.5, h * 0.29), date_range_str.upper(), font=font_date, fill=(255, 255, 255), anchor="mm")
+
+    # 3. הוספת נתוני המניות בטבלה
+    font_stock = load_system_font(int(h * 0.052))
+
+    y_positions = [h * 0.508, h * 0.683, h * 0.858]
+    col_coords = [
+        {"ticker_x": w * 0.165, "pct_x": w * 0.380},  # עמודה שמאלית
+        {"ticker_x": w * 0.620, "pct_x": w * 0.835}  # עמודה ימנית
+    ]
+
+    for i in range(min(6, len(stocks_list))):
+        stock = stocks_list[i]
+        row_idx = i % 3
+        col_idx = i // 3
+
+        y_pos = y_positions[row_idx]
+        coords = col_coords[col_idx]
+
+        ticker_str = str(stock.get("ticker", "")).upper()
+        pct_val = float(stock.get("pct_change", 0.0))
+        pct_str = f"{pct_val:+.2f}%"
+
+        # שם הטיקר (לבן)
+        draw.text((coords["ticker_x"], y_pos), ticker_str, font=font_stock, fill=(255, 255, 255), anchor="mm")
+
+        # אחוז השינוי השבועי (ירוק/אדום)
+        color = (0, 255, 163) if pct_val >= 0 else (255, 51, 102)
+        draw.text((coords["pct_x"], y_pos), pct_str, font=font_stock, fill=color, anchor="mm")
+
+    img.save(output_path)
+    print(f"📸 Weekly Thumbnail נוצר בהצלחה: {output_path}")
+    return output_path
