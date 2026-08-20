@@ -38,6 +38,11 @@ if "WEBHOOK_TOKEN" in st.query_params:
         filename = generate_and_upload_video(upload=True)
         st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
         print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
+    elif video_type == "daily_summery":
+        sys.stdout.reconfigure(line_buffering=True)
+        filename = build_full_daily_video(upload=True)
+        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
     elif video_type == "ping":
         print("Wakeup", flush=True)
         st.write("🟢 Keep-Alive Ping Received! Server is awake and ready.")
