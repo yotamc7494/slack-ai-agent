@@ -248,16 +248,16 @@ def build_full_weekly_video(
 
         # --- 8. שמירת הקובץ הסופי ---
         print(f"\n💾 מקרן ושומר את הסרטון המלא: {youtube_title}...", flush=True)
-        #final_video_clip.write_videofile(
-        #    output_filename,
-        #    fps=30,
-        #    codec="libx264",
-        #    audio_codec="aac",
-        #    bitrate="8000k",
-        #    logger=None,
-        #    threads=1,
-        #    preset="ultrafast",
-        #)
+        final_video_clip.write_videofile(
+            output_filename,
+            fps=30,
+            codec="libx264",
+            audio_codec="aac",
+            bitrate="8000k",
+            logger=None,
+            threads=1,
+            preset="ultrafast",
+        )
 
         print(f"\n🎉 הסרטון המלא והמושלם נשמר ב: {output_filename}")
 
