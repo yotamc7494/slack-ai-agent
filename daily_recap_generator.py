@@ -693,7 +693,7 @@ def render_outro_clip(audio_path="temp_outro_narration.mp3"):
 def build_full_daily_video(
         stock_count=6,
         output_filename="daily_market_recap.mp4",
-        bg_music_path=None,
+        bg_music_path="assets/weekly_recup_music.mp3",
         upload=False,
 ):
     logger.info("🚀 מתחיל ייצור סרטון סיכום יומי מלא...")
