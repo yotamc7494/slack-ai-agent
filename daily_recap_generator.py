@@ -58,6 +58,13 @@ STOCK_POOL = [
 # ---------------------------------------------------------
 # 0. פונקציות עזר כלליות
 # ---------------------------------------------------------
+def format_seconds_to_timestamp(seconds):
+    """ממירה שניות לפורמט MM:SS עבור Timestamps ב-YouTube."""
+    mins = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{mins:02d}:{secs:02d}"
+
+
 def generate_voiceover_audio(
         script_text,
         output_path="temp_narration.mp3",
@@ -354,7 +361,6 @@ def get_analyst_data_direct(ticker):
                 res = result[0]
                 fin_data = res.get("financialData", {})
 
-                # 1. חילוץ ישיר מ-financialData
                 num = fin_data.get("numberOfAnalystRecommendations", {}).get("raw")
                 if num is not None:
                     num_analysts = int(num)
@@ -363,7 +369,6 @@ def get_analyst_data_direct(ticker):
                 if rec_raw and str(rec_raw).upper() != "NONE":
                     recommendation = str(rec_raw).upper()
 
-                # 2. גיבוי: אם המקור הראשון ריק, סכימה מתוך recommendationTrend
                 if num_analysts == "No Official Data":
                     trends = res.get("recommendationTrend", {}).get("trend", [])
                     if trends:
@@ -387,21 +392,18 @@ def fetch_daily_stock_full_context(ticker, preloaded_df=None):
     t = yf.Ticker(ticker)
     df_ohlc = preloaded_df if (preloaded_df is not None and not preloaded_df.empty) else t.history(period="1d", interval="5m")
 
-    # 1. ניסיון שליפה מ-yfinance
     info = {}
     try:
         info = t.info or {}
     except Exception:
         pass
 
-    # 2. מעקף חסימה ב-Streamlit Cloud במידה ו-info ריק
     if not info or "marketCap" not in info:
         direct_data = get_yahoo_quote_direct(ticker)
         info.update(direct_data)
 
     company_name = info.get("shortName") or info.get("longName") or ticker
 
-    # 3. מחירים
     if not df_ohlc.empty:
         open_price = float(df_ohlc["Open"].iloc[0])
         current_price = float(df_ohlc["Close"].iloc[-1])
@@ -411,7 +413,6 @@ def fetch_daily_stock_full_context(ticker, preloaded_df=None):
 
     pct_change = float(((current_price - open_price) / open_price) * 100) if open_price != 0 else 0.0
 
-    # 4. חילוץ נתוני שוק
     mcap_val = info.get("marketCap")
     market_cap_str = format_large_number(mcap_val) if mcap_val else "N/A"
 
@@ -421,11 +422,9 @@ def fetch_daily_stock_full_context(ticker, preloaded_df=None):
     eps_val = info.get("epsTrailingTwelveMonths") or info.get("trailingEps")
     eps_str = f"${float(eps_val):.2f}" if eps_val else "N/A"
 
-    # מחיר יעד של אנליסטים
     target_price = info.get("targetMeanPrice")
     target_price_str = f"${float(target_price):.2f}" if target_price else "No Official Data"
 
-    # 5. חילוץ נתוני אנליסטים
     num_analysts = info.get("numberOfAnalystRecommendations") or info.get("analystRatingCount")
     recommendation = info.get("recommendationKey")
 
@@ -434,7 +433,6 @@ def fetch_daily_stock_full_context(ticker, preloaded_df=None):
         if not recommendation or recommendation == "N/A":
             recommendation = direct_rec
 
-    # ברירת מחדל במידה ומידע האנליסטים נשאר ריק
     if not num_analysts or num_analysts in ["N/A", "None"]:
         num_analysts = "No Official Data"
 
@@ -443,7 +441,6 @@ def fetch_daily_stock_full_context(ticker, preloaded_df=None):
     else:
         recommendation_str = str(recommendation).upper()
 
-    # 6. חדשות מ-Google News RSS
     news_headlines = []
     try:
         url = f"https://news.google.com/rss/search?q={ticker}+stock+when:1d&hl=en-US&gl=US&ceid=US:en"
@@ -510,7 +507,6 @@ def render_single_stock_clip(stock_data, queued_stocks=[], duration=20.0, fps=30
     canvas = FigureCanvasAgg(fig)
     fig.patch.set_facecolor('#0B0E14')
 
-    # --- 1. תצוגת 3 המניות הבאות למעלה (Queue Panel) ---
     queue_box_positions = [[0.05, 0.81, 0.27, 0.15], [0.36, 0.81, 0.27, 0.15], [0.67, 0.81, 0.27, 0.15]]
 
     for i in range(3):
@@ -543,7 +539,6 @@ def render_single_stock_clip(stock_data, queued_stocks=[], duration=20.0, fps=30
         else:
             box_ax.text(0.5, 0.5, " ", transform=box_ax.transAxes, fontsize=10, color='#8B949E', ha='center', va='center')
 
-    # --- 2. פס המדדים והמידע המרכזי (Middle Metric Bar) ---
     pct_color = '#00FFA3' if stock_data['pct_change'] >= 0 else '#FF3366'
 
     fig.text(0.05, 0.74, stock_data['ticker'], fontsize=22, fontweight='bold', color='#FFFFFF')
@@ -555,7 +550,6 @@ def render_single_stock_clip(stock_data, queued_stocks=[], duration=20.0, fps=30
 
     fig.add_artist(Line2D([0.05, 0.95], [0.71, 0.71], color='#30363D', linewidth=1.5))
 
-    # --- 3. גרף נרות יפניים ראשי (Main Candle Chart) ---
     ax = fig.add_axes([0.05, 0.08, 0.90, 0.60])
     ax.set_facecolor('#0B0E14')
 
@@ -637,6 +631,7 @@ def generate_daily_stocks_section_video(stock_tickers, fps=30):
     clips = []
     figs_to_close = []
     temp_files = []
+    stock_timings = []  # רשימה לשמירת משך הזמן של כל מניה
 
     for idx, stock_data in enumerate(all_stocks_data):
         script = generate_daily_stock_ai_script(stock_data)
@@ -658,9 +653,10 @@ def generate_daily_stocks_section_video(stock_tickers, fps=30):
 
         clips.append(clip)
         figs_to_close.append(fig)
+        stock_timings.append((stock_data['ticker'], voice_clip.duration))
 
     stocks_clip = concatenate_videoclips(clips)
-    return stocks_clip, figs_to_close, temp_files
+    return stocks_clip, figs_to_close, temp_files, stock_timings
 
 
 def render_outro_clip(audio_path="temp_outro_narration.mp3"):
@@ -699,6 +695,8 @@ def build_full_daily_video(
     logger.info("🚀 מתחיל ייצור סרטון סיכום יומי מלא...")
     temp_files_to_clean = []
     all_figs_to_close = []
+    timestamps_list = []
+    current_time_sec = 0.0
 
     try:
         # === חלק 1: מאקרו ומדדים יומיים ===
@@ -716,19 +714,35 @@ def build_full_daily_video(
         )
         all_figs_to_close.append(macro_fig)
 
+        # רישום Timestamp למאקרו (00:00)
+        timestamps_list.append(f"{format_seconds_to_timestamp(current_time_sec)} Market Recap")
+        current_time_sec += macro_clip.duration
+
         # === חלק 2: סקציית המניות ===
         top_stocks = select_top_stocks_of_the_day(count=stock_count)
-        stocks_clip, stock_figs, stock_audio_files = (
+        stocks_clip, stock_figs, stock_audio_files, stock_timings = (
             generate_daily_stocks_section_video(top_stocks)
         )
 
         all_figs_to_close.extend(stock_figs)
         temp_files_to_clean.extend(stock_audio_files)
 
+        # רישום Timestamps עבור כל מניה ומניה
+        for ticker, duration in stock_timings:
+            timestamps_list.append(f"{format_seconds_to_timestamp(current_time_sec)} {ticker}")
+            current_time_sec += duration
+
         # === חלק 3: מסך Outro ===
         outro_clip, outro_fig, outro_audio_file = render_outro_clip()
         all_figs_to_close.append(outro_fig)
         temp_files_to_clean.append(outro_audio_file)
+
+        # רישום Timestamp לסגיר
+        timestamps_list.append(f"{format_seconds_to_timestamp(current_time_sec)} Outro")
+
+        # יצירת בלוק ה-Timestamps המלא
+        timestamps_text = "\n\nCHAPTERS:\n" + "\n".join(timestamps_list)
+        final_description = (ai_content.get("description", "") + timestamps_text).strip()
 
         # === חלק 4: איחוד כל הסרטון ===
         logger.info("🔗 משרשר את המאקרו, המניות וה-Outro...")
@@ -780,7 +794,7 @@ def build_full_daily_video(
             upload_video(
                 output_filename,
                 ai_content.get("youtube_title"),
-                ai_content.get("description"),
+                final_description,
                 ai_content.get("tags"),
                 thumbnail_path=img_path,
             )
@@ -800,6 +814,7 @@ def build_full_daily_video(
                     logger.warning(f"⚠️ לא ניתן למחוק קובץ זמני {temp_file}: {e}")
 
     return output_filename
+
 
 if __name__ == "__main__":
     build_full_daily_video(upload=False)

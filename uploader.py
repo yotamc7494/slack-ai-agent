@@ -98,11 +98,10 @@ def upload_video(
   print(f"🚀 Starting upload: {title}", flush=True)
 
   # --- 3. בניית גוף הבקשה (body) ---
-  description = f"""{description}
-
----
-📊 Best Stock Charting Tool (Get $15 Off):
+  description = f"""📊 Best Stock Charting Tool (Get $15 Off):
 👉 https://www.tradingview.com/?aff_id=169872&source=yt
+---
+{description}
 """
   body = {
       "snippet": {
