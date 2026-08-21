@@ -778,10 +778,15 @@ def run_generator(test_mode=False):
 
     output_filename = f"{ticker1}_vs_{ticker2}.mp4"
     investment = random.choice([100, 200, 500, 1000])
-
-    upload_data, thumb_path = create_comparison_fomo_video(
-        ticker1, ticker2, sector_name, MUSIC_PATH, investment, output_filename  # <-- הועבר sector_name
-    )
+    upload_data, thumb_path = None, None
+    attempts = 0
+    while upload_data is None and thumb_path is None:
+        attempts += 1
+        upload_data, thumb_path = create_comparison_fomo_video(
+            ticker1, ticker2, sector_name, MUSIC_PATH, investment, output_filename
+        )
+        if attempts > 10:
+            break
 
     if test_mode:
         return output_filename
