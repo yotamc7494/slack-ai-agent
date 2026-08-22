@@ -638,18 +638,7 @@ def create_comparison_fomo_video(
 
     total_duration = duration + 1.0
 
-    zoom_type = random.choice(["in", "out"])
-    if zoom_type == "in":
-        final_video = final_video.fx(vfx.resize, lambda t: 1 + 0.002 * t)
-    else:
-        final_video = final_video.fx(vfx.resize, lambda t: 1.08 - 0.002 * t)
-
-    final_video = final_video.crop(
-        x_center=final_video.w / 2,
-        y_center=final_video.h / 2,
-        width=width,
-        height=height,
-    )
+    
 
     if music_path and os.path.exists(music_path):
         bg_music = AudioFileClip(music_path)
