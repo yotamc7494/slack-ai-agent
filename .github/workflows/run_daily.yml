@@ -53,9 +53,9 @@ jobs:
               is_morning_run = 6 <= now_et.hour <= 9
 
               if is_trading_day and not is_morning_run:
-                  video_type = 'daily_summery'
+                  video_type = 'vs_video'
               elif is_sunday and is_morning_run:
-                  video_type = 'weekly_summery'
+                  video_type = 'vs_video'
               else:
                   video_type = 'vs_video'
 
