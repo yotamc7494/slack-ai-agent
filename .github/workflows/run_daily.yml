@@ -55,7 +55,7 @@ jobs:
               if is_trading_day and not is_morning_run:
                   video_type = 'vs_video'
               elif is_sunday and is_morning_run:
-                  video_type = 'vs_video'
+                  video_type = 'weekly_summary'
               else:
                   video_type = 'vs_video'
 
