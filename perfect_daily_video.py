@@ -330,24 +330,20 @@ def fetch_intro_index_data():
     btc = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True)
 
     min_len = min(len(spy), len(qqq), len(btc))
-    if min_len == 0:
+    if min_len < 4:  # Spline requires at least 4 points (k=3)
         spy = yf.Ticker("SPY").history(period="2d", interval="5m", prepost=True).tail(78)
         qqq = yf.Ticker("QQQ").history(period="2d", interval="5m", prepost=True).tail(78)
         btc = yf.Ticker("BTC-USD").history(period="2d", interval="5m", prepost=True).tail(78)
         min_len = min(len(spy), len(qqq), len(btc))
 
-    spy_v = spy["Close"].values
-    qqq_v = qqq["Close"].values
-    btc_v = btc["Close"].values
+    # 🔧 תיקון: חיתוך כל המערכים בדיוק לאורך min_len
+    spy_v = spy["Close"].values[-min_len:]
+    qqq_v = qqq["Close"].values[-min_len:]
+    btc_v = btc["Close"].values[-min_len:]
 
-    spy_pct_0 = spy_v[0]
-    spy_pct = ((spy_v - spy_pct_0) / spy_pct_0) * 100
-
-    qqq_pct_0 = qqq_v[0]
-    qqq_pct = ((qqq_v - qqq_pct_0) / qqq_pct_0) * 100
-
-    btc_pct_0 = btc_v[0]
-    btc_pct = ((btc_v - btc_pct_0) / btc_pct_0) * 100
+    spy_pct = ((spy_v - spy_v[0]) / spy_v[0]) * 100
+    qqq_pct = ((qqq_v - qqq_v[0]) / qqq_v[0]) * 100
+    btc_pct = ((btc_v - btc_v[0]) / btc_v[0]) * 100
 
     x_raw = np.linspace(0, 1, min_len)
     x_smooth = np.linspace(0, 1, 300)
