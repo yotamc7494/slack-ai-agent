@@ -1,73 +1,66 @@
 import streamlit as st
 import os
 import sys
-# ייבוא הפונקציות המקוריות שלך - הנוסחאות עובדות!
-import streamlit.components.v1 as components
 import base64
+import streamlit.components.v1 as components
+
+# ייבוא פונקציות קיימות
 from comparison_video_engine import run_generator
 from main import render_final_video, view_final_video
 from daily_recap_generator import build_full_daily_video
 from weekly_summery_video import generate_and_upload_video
 
+# ייבוא המנוע היומי המשודרג (החדש)
+from perfect_daily_video import run_perfect_pipeline
+
 st.set_page_config(page_title="AI Stock Video Generator", page_icon="🚀")
 
 st.title("🚀 מחולל סרטוני מניות - מעקף ידני")
 
-# --- סקשן סרטוני מנייה ---
+# --- תמיכה ב-Webhook מ-GitHub Actions ---
+if "WEBHOOK_TOKEN" in st.query_params:
+    if st.query_params["WEBHOOK_TOKEN"] == st.secrets.get("WEBHOOK_TOKEN"):
+        video_type = st.query_params["video_type"]
+        print(f"⚡ Webhook triggered from GitHub Actions! - {video_type}", flush=True)
+        sys.stdout.reconfigure(line_buffering=True)
+        
+        if video_type == "update_video":
+            filename = render_final_video()
+            st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        elif video_type == "vs_video":
+            filename = run_generator()
+            st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        elif video_type == "weekly_summery":
+            filename = generate_and_upload_video(upload=True)
+            st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        elif video_type == "daily_summery":
+            # הפעלת הפייפליין המשודרג
+            filename = "perfect_daily_recap.mp4"
+            run_perfect_pipeline(output_filename=filename)
+            st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
+        elif video_type == "ping":
+            print("Wakeup", flush=True)
+            st.write("🟢 Keep-Alive Ping Received! Server is awake and ready.")
+            st.stop()
+    else:
+        st.info("Wrong Token!")
+
+# ---------------------------------------------------------
+# סקשן 1: סרטוני מנייה
+# ---------------------------------------------------------
 st.header("סרטוני מנייה")
-# יצירת עמודות נפרדות עבור סקשן זה
 col1, col2 = st.columns(2)
 
-if "WEBHOOK_TOKEN" in st.query_params:
-  if st.query_params["WEBHOOK_TOKEN"] == st.secrets.get("WEBHOOK_TOKEN"):
-    video_type = st.query_params["video_type"]
-    print(f"⚡ Webhook triggered from GitHub Actions! - {video_type}", flush=True)
-    if video_type == "update_video":
-        sys.stdout.reconfigure(line_buffering=True)
-        filename = render_final_video()
-        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
-
-    elif video_type == "vs_video":
-        sys.stdout.reconfigure(line_buffering=True)
-        filename = run_generator()
-        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
-    elif video_type == "weekly_summery":
-        sys.stdout.reconfigure(line_buffering=True)
-        filename = generate_and_upload_video(upload=True)
-        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
-    elif video_type == "daily_summery":
-        sys.stdout.reconfigure(line_buffering=True)
-        filename = build_full_daily_video(upload=True)
-        st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
-        print(f"✅ הסרטון נוצר בהצלחה: {filename}", flush=True)
-    elif video_type == "ping":
-        print("Wakeup", flush=True)
-        st.write("🟢 Keep-Alive Ping Received! Server is awake and ready.")
-        st.stop()
-  else:
-      st.info("Wrong Token!")
 with col1:
-    # שינוי התווית לייחודית: הוספת המילה "מנייה"
-    run_full = st.button("🚀 הרץ והעלה מנייה ליוטיוב")
-
+    run_full_stock = st.button("🚀 הרץ והעלה מנייה ליוטיוב", key="btn_stock_full")
 with col2:
-    # שינוי התווית לייחודית: הוספת המילה "מנייה"
-    run_test = st.button("🧪 הרצת ניסיון מנייה (תצוגה מקדימה)")
+    run_test_stock = st.button("🧪 הרצת ניסיון מנייה (תצוגה מקדימה)", key="btn_stock_test")
 
-# לוגיקת הפעלה עבור סרטוני מנייה
-if run_full or run_test:
-    is_test_mode = run_test
-
-    if is_test_mode:
-        st.warning("🧪 מריץ במצב ניסיון: הסרטון לא יועלה ליוטיוב והמניה לא תישמר ב-used stocks.")
-        # קריאה לפונקציה המקורית שלך
+if run_full_stock or run_test_stock:
+    if run_test_stock:
+        st.warning("🧪 מריץ במצב ניסיון: הסרטון לא יועלה ליוטיוב.")
         filename = view_final_video()
         st.success("✅ הסרטון נוצר בהצלחה!")
-
-        # יצירת כפתור הורדה
         if filename and os.path.exists(filename):
             with open(filename, "rb") as file:
                 st.download_button(
@@ -80,30 +73,25 @@ if run_full or run_test:
             st.error("שגיאה: קובץ הוידאו לא נמצא.")
     else:
         st.info("🚀 מריץ תהליך מלא כולל העלאה ליוטיוב...")
-        # קריאה לפונקציה המקורית שלך
         render_final_video()
-        st.success("התהליך הסתייים.")
+        st.success("התהליך הסתיים.")
 
-st.write("---") # קו מפריד ויזואלי
+st.write("---")
 
-# --- סקשן סרטוני השוואה ---
+# ---------------------------------------------------------
+# סקשן 2: סרטוני השוואה
+# ---------------------------------------------------------
 st.header("סרטוני השוואה")
-# יצירת עמודות נפרדות וחדשות (col3, col4) עבור סקשן זה כדי למנוע בלבול
 col3, col4 = st.columns(2)
 
 with col3:
-    # שינוי התווית לייחודית: הוספת המילה "השוואה"
-    run_full_c = st.button("🚀 הרץ והעלה השוואה ליוטיוב")
-
+    run_full_comp = st.button("🚀 הרץ והעלה השוואה ליוטיוב", key="btn_comp_full")
 with col4:
-    # שינוי התווית לייחודית: הוספת המילה "השוואה"
-    run_test_c = st.button("🧪 הרצת ניסיון השוואה (תצוגה מקדימה)")
+    run_test_comp = st.button("🧪 הרצת ניסיון השוואה (תצוגה מקדימה)", key="btn_comp_test")
 
-# לוגיקת הפעלה עבור סרטוני השוואה
-if run_test_c or run_full_c:
-    is_test_mode_c = run_test_c
+if run_full_comp or run_test_comp:
+    is_test_mode_c = run_test_comp
     st.info(f"מריץ סרטון השוואה (מצב טסט: {is_test_mode_c})...")
-    # קריאה לפונקציה המקורית שלך מהקובץ השני
     video_path = run_generator(is_test_mode_c)
     st.success("תהליך יצירת סרטון השוואה הסתיים.")
     if video_path and os.path.exists(video_path):
@@ -115,36 +103,31 @@ if run_test_c or run_full_c:
                 mime="video/mp4"
             )
 
-st.write("---") # קו מפריד ויזואלי
+st.write("---")
 
-# --- סקשן סרטוני השוואה ---
+# ---------------------------------------------------------
+# סקשן 3: סרטוני סיכום שבועי
+# ---------------------------------------------------------
 st.header("סרטוני סיכום שבועי")
-# יצירת עמודות נפרדות וחדשות (col3, col4) עבור סקשן זה כדי למנוע בלבול
 col5, col6 = st.columns(2)
 
 with col5:
-    # שינוי התווית לייחודית: הוספת המילה "השוואה"
-    run_full_c = st.button("🚀 הרץ והעלה סיכום שבועי ליוטיוב")
-
+    run_full_weekly = st.button("🚀 הרץ והעלה סיכום שבועי ליוטיוב", key="btn_weekly_full")
 with col6:
-    # שינוי התווית לייחודית: הוספת המילה "השוואה"
-    run_test_c = st.button("🧪 הרצת ניסיון סיכום שבועי (תצוגה מקדימה)")
+    run_test_weekly = st.button("🧪 הרצת ניסיון סיכום שבועי (תצוגה מקדימה)", key="btn_weekly_test")
 
-# לוגיקת הפעלה עבור סרטוני השוואה
-if run_test_c or run_full_c:
-    is_test_mode_c = run_test_c
-    st.info(f"מריץ סרטון סיכום שבועי (מצב טסט: {is_test_mode_c})...")
-    # קריאה לפונקציה המקורית שלך מהקובץ השני
-    video_path = generate_and_upload_video(upload=not is_test_mode_c)
+if run_full_weekly or run_test_weekly:
+    is_test_mode_w = run_test_weekly
+    st.info(f"מריץ סרטון סיכום שבועי (מצב טסט: {is_test_mode_w})...")
+    video_path = generate_and_upload_video(upload=not is_test_mode_w)
+    
     if video_path and os.path.exists(video_path):
-        # 1. קריאת קובץ הוידאו והמרתו ל-Base64 עבור ה-JavaScript
         with open(video_path, "rb") as file:
             video_bytes = file.read()
 
         b64_video = base64.b64encode(video_bytes).decode("utf-8")
         file_name = os.path.basename(video_path)
 
-        # 2. הזרקת קוד JavaScript שמפעיל הורדה אוטומטית בדפדפן
         download_js = f"""
         <script>
             var a = document.createElement('a');
@@ -157,7 +140,6 @@ if run_test_c or run_full_c:
         """
         components.html(download_js, height=0, width=0)
 
-        # 3. לחצן גיבוי למקרה שהדפדפן חסם את ההורדה האוטומטית
         st.download_button(
             label="📥 ההורדה לא התחילה? לחץ כאן להורדה ידנית",
             data=video_bytes,
@@ -165,52 +147,63 @@ if run_test_c or run_full_c:
             mime="video/mp4",
         )
 
-st.write("---") # קו מפריד ויזואלי
+st.write("---")
 
-# --- סקשן סרטוני השוואה ---
-st.header("סרטוני סיכום יומי")
-# יצירת עמודות נפרדות וחדשות (col3, col4) עבור סקשן זה כדי למנוע בלבול
+# ---------------------------------------------------------
+# סקשן 4: סרטוני סיכום יומי (הגרסה המשודרגת 6/6)
+# ---------------------------------------------------------
+st.header("סרטוני סיכום יומי (משודרג)")
 col7, col8 = st.columns(2)
 
 with col7:
-    # שינוי התווית לייחודית: הוספת המילה "השוואה"
-    run_full_c = st.button("🚀 הרץ והעלה סיכום יומי ליוטיוב")
-
+    run_full_daily = st.button("🚀 הרץ והעלה סיכום יומי ליוטיוב", key="btn_daily_full")
 with col8:
-    # שינוי התווית לייחודית: הוספת המילה "השוואה"
-    run_test_c = st.button("🧪 הרצת ניסיון סיכום יומי (תצוגה מקדימה)")
+    run_test_daily = st.button("🧪 הרצת ניסיון סיכום יומי (תצוגה מקדימה)", key="btn_daily_test")
 
-# לוגיקת הפעלה עבור סרטוני השוואה
-if run_test_c or run_full_c:
-    is_test_mode_c = run_test_c
-    st.info(f"מריץ סרטון סיכום יומי (מצב טסט: {is_test_mode_c})...")
-    # קריאה לפונקציה המקורית שלך מהקובץ השני
-    video_path = build_full_daily_video(upload=not is_test_mode_c)
-    if video_path and os.path.exists(video_path):
-        # 1. קריאת קובץ הוידאו והמרתו ל-Base64 עבור ה-JavaScript
-        with open(video_path, "rb") as file:
-            video_bytes = file.read()
+if run_full_daily or run_test_daily:
+    is_test_mode_d = run_test_daily
+    st.info("🔄 מתחיל ביצירת סרטון סיכום יומי (פייפליין 6 השלבים)...")
+    
+    output_file = "perfect_daily_recap.mp4"
+    
+    with st.spinner("מוריד תמלול, מאמת נתונים, מפיק TTS ומקליט וידאו..."):
+        try:
+            # הפעלת הפייפליין החדש
+            run_perfect_pipeline(output_filename=output_file)
+            st.success("🎉 סרטון הסיכום היומי נוצר בהצלחה!")
+            
+            if os.path.exists(output_file):
+                # 1. המרה ל-Base64 והורדה אוטומטית בדפדפן
+                with open(output_file, "rb") as file:
+                    video_bytes = file.read()
 
-        b64_video = base64.b64encode(video_bytes).decode("utf-8")
-        file_name = os.path.basename(video_path)
+                b64_video = base64.b64encode(video_bytes).decode("utf-8")
+                file_name = os.path.basename(output_file)
 
-        # 2. הזרקת קוד JavaScript שמפעיל הורדה אוטומטית בדפדפן
-        download_js = f"""
-        <script>
-            var a = document.createElement('a');
-            a.href = 'data:video/mp4;base64,{b64_video}';
-            a.download = '{file_name}';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        </script>
-        """
-        components.html(download_js, height=0, width=0)
+                download_js = f"""
+                <script>
+                    var a = document.createElement('a');
+                    a.href = 'data:video/mp4;base64,{b64_video}';
+                    a.download = '{file_name}';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                </script>
+                """
+                components.html(download_js, height=0, width=0)
 
-        # 3. לחצן גיבוי למקרה שהדפדפן חסם את ההורדה האוטומטית
-        st.download_button(
-            label="📥 ההורדה לא התחילה? לחץ כאן להורדה ידנית",
-            data=video_bytes,
-            file_name=file_name,
-            mime="video/mp4",
-        )
+                # 2. נגן וידאו מובנה לתצוגה מקדימה ב-Streamlit
+                st.video(video_bytes)
+
+                # 3. לחצן גיבוי להורדה ידנית
+                st.download_button(
+                    label="📥 לחץ כאן להורדת סרטון הסיכום היומי (MP4)",
+                    data=video_bytes,
+                    file_name=file_name,
+                    mime="video/mp4",
+                    key="btn_download_daily_recap"
+                )
+            else:
+                st.error("❌ הקובץ נוצר אך לא נמצא בדיסק.")
+        except Exception as e:
+            st.error(f"❌ שגיאה במהלך יצירת הסרטון: {e}")
