@@ -249,7 +249,7 @@ def transcribe_audio_with_gemini(audio_path: str) -> str:
     """
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-flash-lite-latest",
         contents=[audio_file, glossary_prompt]
     )
     client.files.delete(name=audio_file.name)
@@ -311,7 +311,7 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
     """
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-flash-lite-latest",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
