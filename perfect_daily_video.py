@@ -89,9 +89,6 @@ def clean_script_for_tts(text: str) -> str:
     return text
 
 def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.mp3") -> float:
-    """
-    Generates TTS audio and returns exact duration.
-    """
     clean_text = clean_script_for_tts(script_text)
     logger.info(f"🎙️ Generating TTS audio: {output_path}")
 
@@ -106,7 +103,7 @@ def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.m
     return duration
 
 # ---------------------------------------------------------
-# 1. RSS, Transcript & Audio Fetching
+# 1. RSS & Robust Multi-Method Transcript Extraction
 # ---------------------------------------------------------
 MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?channel_id=UCSxjNbPriyBh9RNl_QNSAtw"
 
@@ -134,34 +131,81 @@ def get_latest_micha_video_url() -> Optional[str]:
 
 
 def extract_video_id(url: str) -> Optional[str]:
-    """מחלץ את מזהה הסרטון מכתובת ה-URL"""
     match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
     return match.group(1) if match else None
 
 
-def get_transcript_or_audio(video_url: str) -> Tuple[Optional[str], Optional[str]]:
+def fetch_youtube_transcript_robust(video_id: str) -> Optional[str]:
     """
-    מנסה למשוך תמליל ישירות מיוטיוב (מונע לגמרי שגיאות 403 בענן).
-    אם אין כתוביות, עובר להורדת MP3 כגיבוי.
-    מחזיר: (transcript_text, mp3_file_path)
+    תומך בכל הגרסאות של youtube-transcript-api (ישנות וחדשות).
+    אם התמליל נכשל, מבצע חילוץ כתוביות דרך yt-dlp ללא הורדת אודיו/וידאו.
     """
-    video_id = extract_video_id(video_url)
-    if video_id:
+    logger.info(f"📜 Attempting to fetch transcript for video ID: {video_id}...")
+
+    # דרך 1: בדיקת מתודה סטטית (גרסאות ישנות)
+    if hasattr(YouTubeTranscriptApi, 'get_transcript'):
         try:
-            logger.info(f"📜 Trying direct transcript fetch for video ID: {video_id}...")
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['he', 'iw', 'en'])
-            full_text = " ".join([item['text'] for item in transcript_list])
-            logger.info("✅ Successfully retrieved transcript directly from YouTube!")
-            return full_text, None
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['he', 'iw', 'en'])
+            text = " ".join([item['text'] if isinstance(item, dict) else getattr(item, 'text', '') for item in transcript])
+            if text.strip():
+                logger.info("✅ Retrieved transcript via static YouTubeTranscriptApi.get_transcript")
+                return text
         except Exception as e:
-            logger.warning(f"⚠️ Direct transcript fetch failed ({e}). Falling back to yt-dlp audio download...")
+            logger.warning(f"⚠️ Static get_transcript failed: {e}")
 
-    mp3_path = download_youtube_audio(video_url)
-    return None, mp3_path
+    # דרך 2: יצירת אובייקט (גרסאות חדשות)
+    try:
+        api_instance = YouTubeTranscriptApi()
+        fetch_method = getattr(api_instance, 'fetch', getattr(api_instance, 'get_transcript', None))
+        if fetch_method:
+            transcript = fetch_method(video_id)
+            text = " ".join([item.text if hasattr(item, 'text') else item.get('text', '') for item in transcript])
+            if text.strip():
+                logger.info("✅ Retrieved transcript via YouTubeTranscriptApi instance call")
+                return text
+    except Exception as e:
+        logger.warning(f"⚠️ Instance transcript fetch failed: {e}")
+
+    # דרך 3: חילוץ כתוביות טקסט ישירות מ-yt-dlp ללא הורדת קובץ המדיה (עוקף חסימות Bot)
+    try:
+        logger.info("📜 Falling back to yt-dlp subtitle metadata extraction...")
+        ydl_opts = {
+            'skip_download': True,
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': ['he', 'iw', 'en'],
+            'quiet': True,
+            'no_warnings': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            subtitles = info.get('subtitles') or info.get('automatic_captions')
+            if subtitles:
+                for lang in ['he', 'iw', 'en']:
+                    if lang in subtitles:
+                        json_sub = next((s['url'] for s in subtitles[lang] if s.get('ext') == 'json3'), None)
+                        if json_sub:
+                            resp = requests.get(json_sub, timeout=10)
+                            if resp.status_code == 200:
+                                events = resp.json().get('events', [])
+                                text_parts = [
+                                    seg.get('utf8', '').strip()
+                                    for ev in events for seg in ev.get('segs', [])
+                                    if seg.get('utf8', '').strip()
+                                ]
+                                full_text = " ".join(text_parts)
+                                if full_text.strip():
+                                    logger.info("✅ Retrieved transcript via yt-dlp subtitle JSON stream")
+                                    return full_text
+    except Exception as e:
+        logger.warning(f"⚠️ Subtitle metadata extraction failed: {e}")
+
+    return None
 
 
-def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
-    logger.info(f"📥 Downloading audio from {video_url}...")
+def download_youtube_audio_fallback(video_url: str, output_mp3="micha_input.mp3") -> str:
+    """מופעל רק כגיבוי אחרון אם לא נמצאו כתוביות כלל"""
+    logger.info(f"📥 Downloading audio fallback from {video_url}...")
     
     ydl_opts = {
         'format': 'ba/b',
@@ -176,27 +220,20 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
         'nocheckcertificate': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['web_creator', 'mweb'],
+                'player_client': ['ios', 'android'],
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
     }
     
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
-        return output_mp3
-    except Exception as e:
-        logger.error(f"❌ yt-dlp download failed: {e}")
-        raise e
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([video_url])
+    return output_mp3
 
 
 def transcribe_audio_with_gemini(audio_path: str) -> str:
-    """
-    Financial Glossary Prompt for high Hebrew/Financial accuracy when audio is used.
-    """
     logger.info("🧠 Transcribing audio with Financial Glossary Prompt...")
     client = get_gemini_client()
     audio_file = client.files.upload(file=audio_path)
@@ -222,9 +259,6 @@ def transcribe_audio_with_gemini(audio_path: str) -> str:
 # 2. Market Data Verification
 # ---------------------------------------------------------
 def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
-    """
-    Fetches ground-truth data from yfinance before script generation.
-    """
     logger.info("🔍 Extracting mentioned tickers and fetching ground-truth data...")
     client = get_gemini_client()
     
@@ -259,9 +293,6 @@ def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
 # 3. AI Script Generation with Structured Schema
 # ---------------------------------------------------------
 def generate_verified_script(transcript: str, verified_market_data: dict) -> FullVideoScriptSchema:
-    """
-    Generates structured JSON output with strict 65-75 words count limit for intro.
-    """
     logger.info("📝 Generating structured video script...")
     client = get_gemini_client()
 
@@ -449,18 +480,17 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
     current_time = 0.0
 
     try:
-        # Step 1: Download & Transcribe (Direct Transcript or Fallback MP3)
         video_url = get_latest_micha_video_url()
         if not video_url:
             raise ValueError("❌ Could not retrieve YouTube video URL from RSS.")
 
-        direct_transcript, audio_mp3 = get_transcript_or_audio(video_url)
+        video_id = extract_video_id(video_url)
+        transcript = fetch_youtube_transcript_robust(video_id) if video_id else None
 
-        if direct_transcript:
-            transcript = direct_transcript
-        else:
-            if audio_mp3:
-                temp_files.append(audio_mp3)
+        if not transcript:
+            logger.warning("⚠️ Direct transcript unavailable for video. Attempting audio fallback...")
+            audio_mp3 = download_youtube_audio_fallback(video_url)
+            temp_files.append(audio_mp3)
             transcript = transcribe_audio_with_gemini(audio_mp3)
 
         # Step 2: Extract & Verify Market Data
@@ -505,7 +535,7 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
 
     finally:
         for f in temp_files:
-            if os.path.exists(f): 
+            if os.path.exists(f):
                 os.remove(f)
 
 if __name__ == "__main__":
