@@ -263,7 +263,7 @@ def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
     client = get_gemini_client()
     
     prompt = f"Extract all stock tickers mentioned in this text as a JSON array of strings (e.g. ['NVDA', 'TSLA']): {raw_transcript}"
-    res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    res = client.models.generate_content(model="gemini-flash-lite-latest", contents=prompt)
     
     tickers = []
     try:
