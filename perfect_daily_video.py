@@ -325,50 +325,59 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
 # ---------------------------------------------------------
 def fetch_intro_index_data():
     logger.info("📊 Fetching intraday index data...")
-    spy = yf.Ticker("SPY").history(period="1d", interval="5m", prepost=True)
-    qqq = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True)
-    btc = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True)
+    # ניקוי NaNs ברמת ה-DataFrame של כל הנכסים מראש
+    spy_df = yf.Ticker("SPY").history(period="1d", interval="5m", prepost=True).dropna()
+    qqq_df = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True).dropna()
+    btc_df = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True).dropna()
 
-    # 1. חילוץ הערכים וטרנספורמציה ל-numpy array תוך ניקוי NaNs
-    spy_v = spy["Close"].dropna().values
-    qqq_v = qqq["Close"].dropna().values
-    btc_v = btc["Close"].dropna().values
+    # המרה למערכי 1D נקיים של floats
+    spy_v = np.asarray(spy_df["Close"].values, dtype=float).flatten()
+    qqq_v = np.asarray(qqq_df["Close"].values, dtype=float).flatten()
+    btc_v = np.asarray(btc_df["Close"].values, dtype=float).flatten()
 
     min_len = min(len(spy_v), len(qqq_v), len(btc_v))
 
-    # אם אין מספיק נקודות (למשל בתחילת יום מסחר), מושכים יומיים אחורה
     if min_len < 4:
-        spy = yf.Ticker("SPY").history(period="2d", interval="5m", prepost=True).tail(78)
-        qqq = yf.Ticker("QQQ").history(period="2d", interval="5m", prepost=True).tail(78)
-        btc = yf.Ticker("BTC-USD").history(period="2d", interval="5m", prepost=True).tail(78)
+        spy_df = yf.Ticker("SPY").history(period="2d", interval="5m", prepost=True).dropna().tail(78)
+        qqq_df = yf.Ticker("QQQ").history(period="2d", interval="5m", prepost=True).dropna().tail(78)
+        btc_df = yf.Ticker("BTC-USD").history(period="2d", interval="5m", prepost=True).dropna().tail(78)
 
-        spy_v = spy["Close"].dropna().values
-        qqq_v = qqq["Close"].dropna().values
-        btc_v = btc["Close"].dropna().values
-
+        spy_v = np.asarray(spy_df["Close"].values, dtype=float).flatten()
+        qqq_v = np.asarray(qqq_df["Close"].values, dtype=float).flatten()
+        btc_v = np.asarray(btc_df["Close"].values, dtype=float).flatten()
         min_len = min(len(spy_v), len(qqq_v), len(btc_v))
 
-    # 2. חיתוך קשיח וסינכרוני של שלושת המערכים לפי האורך הקצר ביותר
-    spy_v = spy_v[-min_len:]
-    qqq_v = qqq_v[-min_len:]
-    btc_v = btc_v[-min_len:]
+    # פונקציית עזר המבטיחה התאמה מלאה בין ציר X לציר Y
+    def build_smooth_curve(arr_1d, target_len):
+        trimmed = arr_1d[-target_len:]
+        pct_change = ((trimmed - trimmed[0]) / trimmed[0]) * 100.0
+        
+        x_raw = np.linspace(0, 1, target_len)
+        x_smooth = np.linspace(0, 1, 300)
+        
+        if target_len >= 4:
+            spl = make_interp_spline(x_raw, pct_change, k=3)
+            y_smooth = spl(x_smooth)
+        else:
+            y_smooth = np.interp(x_smooth, x_raw, pct_change)
+            
+        return y_smooth, trimmed[-1]
 
-    # 3. חישוב אחוזי השינוי על המערכים החתוכים (מבטיח אורך זהה ל-min_len)
-    spy_pct = ((spy_v - spy_v[0]) / spy_v[0]) * 100
-    qqq_pct = ((qqq_v - qqq_v[0]) / qqq_v[0]) * 100
-    btc_pct = ((btc_v - btc_v[0]) / btc_v[0]) * 100
-
-    # 4. יצירת ציר X בדיוק באורך min_len
-    x_raw = np.linspace(0, 1, min_len)
     x_smooth = np.linspace(0, 1, 300)
+    qqq_smooth, qqq_last = build_smooth_curve(qqq_v, min_len)
+    spy_smooth, spy_last = build_smooth_curve(spy_v, min_len)
+    btc_smooth, btc_last = build_smooth_curve(btc_v, min_len)
+
+    date_label = spy_df.index[-1].strftime("%b %d, %Y").upper() if len(spy_df) > 0 else "TODAY"
 
     return {
         "x": x_smooth,
-        "QQQ": (make_interp_spline(x_raw, qqq_pct, k=3)(x_smooth), qqq_v[-1]),
-        "SPY": (make_interp_spline(x_raw, spy_pct, k=3)(x_smooth), spy_v[-1]),
-        "BTC": (make_interp_spline(x_raw, btc_pct, k=3)(x_smooth), btc_v[-1]),
-        "date_str": spy.index[-1].strftime("%b %d, %Y").upper()
+        "QQQ": (qqq_smooth, qqq_last),
+        "SPY": (spy_smooth, spy_last),
+        "BTC": (btc_smooth, btc_last),
+        "date_str": date_label
     }
+
 
 
 
@@ -425,13 +434,15 @@ def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: floa
 # 5. Dynamic Stock Chart with Annotations
 # ---------------------------------------------------------
 def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str, duration: float) -> VideoClip:
+def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str, duration: float) -> VideoClip:
     ticker = stock_info.ticker
     logger.info(f"📈 Rendering annotated chart for {ticker} with key levels {stock_info.key_levels}...")
     voice_clip = AudioFileClip(audio_path)
 
-    df = yf.Ticker(ticker).history(period=stock_info.timeframe, interval=stock_info.interval, prepost=True)
+    # 🔧 ניקוי NaNs ברמת ה-DataFrame כדי שכל העמודות (Open, High, Low, Close) יחזקו אורך זהה לחלוטין
+    df = yf.Ticker(ticker).history(period=stock_info.timeframe, interval=stock_info.interval, prepost=True).dropna()
     if df.empty:
-        df = yf.Ticker(ticker).history(period="1mo", interval="1d")
+        df = yf.Ticker(ticker).history(period="1mo", interval="1d").dropna()
 
     fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
     canvas = FigureCanvasAgg(fig)
@@ -440,8 +451,11 @@ def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float
     ax = fig.add_axes([0.08, 0.10, 0.88, 0.70])
     ax.set_facecolor('#0B0E14')
 
-    opens, closes = df['Open'].values, df['Close'].values
-    highs, lows = df['High'].values, df['Low'].values
+    opens = np.asarray(df['Open'].values, dtype=float).flatten()
+    closes = np.asarray(df['Close'].values, dtype=float).flatten()
+    highs = np.asarray(df['High'].values, dtype=float).flatten()
+    lows = np.asarray(df['Low'].values, dtype=float).flatten()
+    
     x_idxs = np.arange(len(df))
     candle_colors = np.where(closes >= opens, '#00FFA3', '#FF3366')
 
