@@ -42,9 +42,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("PerfectDailyVideo")
 
-MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?channel_id=UCSxjNbPriyBh9RNl_QNSAtw
-"
-
 # ---------------------------------------------------------
 # Pydantic Schemas for Structured LLM Output (Point 4)
 # ---------------------------------------------------------
@@ -110,44 +107,54 @@ def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.m
 # ---------------------------------------------------------
 # 1. Download & Transcribe with Glossary (Point 2)
 # ---------------------------------------------------------
-def get_latest_micha_video_url() -> str:
+MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?channel_id=UCSxjNbPriyBh9RNl_QNSAtw"
+
+def get_latest_micha_video_url() -> Optional[str]:
     try:
-        req = urllib.request.Request(MICHA_STOCKS_RSS, headers={"User-Agent": "Mozilla/5.0"})
+        # הוספת User-Agent מונעת חסימת HTTP בדפדפנים ושרתים
+        req = urllib.request.Request(MICHA_STOCKS_RSS, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        })
         with urllib.request.urlopen(req, timeout=10) as resp:
             root = ET.fromstring(resp.read())
             entry = root.find("{http://www.w3.org/2005/Atom}entry")
             if entry is not None:
-                return entry.find("{http://www.w3.org/2005/Atom}link").attrib.get("href")
+                video_url = entry.find("{http://www.w3.org/2005/Atom}link").attrib.get("href")
+                title = entry.find("{http://www.w3.org/2005/Atom}title").text
+                logger.info(f"🎥 Found Latest Video: '{title}' ({video_url})")
+                return video_url
     except Exception as e:
-        logger.error(f"Failed to fetch RSS: {e}")
-    return "https://www.youtube.com/@micha.stocks"
+        logger.error(f"Failed to fetch or parse RSS: {e}")
+    return None
 
 def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'quiet': True,
-
-        'no_warnings': True,
-    # הגדרות לעקיפת חסימת 403 של יוטיוב:
-
-        'http_headers': {
+    logger.info(f"📥 Downloading audio from {video_url}...")
     
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': 'micha_input.%(ext)s',
+        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+        'quiet': True,
+        'no_warnings': True,
+        # זיהוי כדפדפן רגיל ועקיפת ה-Anti-bot
+        'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
-
         'extractor_args': {
-    
             'youtube': {
-        
                 'player_client': ['android', 'web'],
-    
             }
-
         }
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_url])
-    return output_mp3
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+        return output_mp3
+    except Exception as e:
+        logger.error(f"❌ yt-dlp download failed: {e}")
+        raise e
+
 
 def transcribe_audio_with_gemini(audio_path: str) -> str:
     """
@@ -249,7 +256,7 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
 # 4. Dynamic 30-Sec Intro Rendering (Point 3)
 # ---------------------------------------------------------
 def fetch_intro_index_data():
-    """Fetches intraday data for Nasdaq, S&P 500, and Bitcoin."""
+    logger.info("📊 Fetching intraday index data...")
     spy = yf.Ticker("SPY").history(period="1d", interval="5m", prepost=True)
     qqq = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True)
     btc = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True)
@@ -261,21 +268,31 @@ def fetch_intro_index_data():
         btc = yf.Ticker("BTC-USD").history(period="2d", interval="5m", prepost=True).tail(78)
         min_len = min(len(spy), len(qqq), len(btc))
 
-    spy_pct = ((spy["Close"].values - spy["Close"].values[0]) / spy["Close"].values[0]) * 100
-    qqq_pct_0 = qqq["Close"].values[0]
-    qqq_pct = ((qqq["Close"].values - qqq_pct_0) / qqq_pct_0) * 100
-    btc_pct = ((btc["Close"].values - btc["Close"].values[0]) / btc["Close"].values[0]) * 100
+    spy_v = spy["Close"].values
+    qqq_v = qqq["Close"].values
+    btc_v = btc["Close"].values
+
+    # הפרדת ההצבות מהחישוב למניעת SyntaxError
+    spy_pct_0 = spy_v[0]
+    spy_pct = ((spy_v - spy_pct_0) / spy_pct_0) * 100
+
+    qqq_pct_0 = qqq_v[0]
+    qqq_pct = ((qqq_v - qqq_pct_0) / qqq_pct_0) * 100
+
+    btc_pct_0 = btc_v[0]
+    btc_pct = ((btc_v - btc_pct_0) / btc_pct_0) * 100
 
     x_raw = np.linspace(0, 1, min_len)
     x_smooth = np.linspace(0, 1, 300)
 
     return {
         "x": x_smooth,
-        "QQQ": (make_interp_spline(x_raw, qqq_pct, k=3)(x_smooth), qqq["Close"].iloc[-1]),
-        "SPY": (make_interp_spline(x_raw, spy_pct, k=3)(x_smooth), spy["Close"].iloc[-1]),
-        "BTC": (make_interp_spline(x_raw, btc_pct, k=3)(x_smooth), btc["Close"].iloc[-1]),
+        "QQQ": (make_interp_spline(x_raw, qqq_pct, k=3)(x_smooth), qqq_v[-1]),
+        "SPY": (make_interp_spline(x_raw, spy_pct, k=3)(x_smooth), spy_v[-1]),
+        "BTC": (make_interp_spline(x_raw, btc_pct, k=3)(x_smooth), btc_v[-1]),
         "date_str": spy.index[-1].strftime("%b %d, %Y").upper()
     }
+
 
 def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: float) -> VideoClip:
     """
