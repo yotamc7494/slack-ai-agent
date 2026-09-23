@@ -329,22 +329,36 @@ def fetch_intro_index_data():
     qqq = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True)
     btc = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True)
 
-    min_len = min(len(spy), len(qqq), len(btc))
-    if min_len < 4:  # Spline requires at least 4 points (k=3)
+    # 1. חילוץ הערכים וטרנספורמציה ל-numpy array תוך ניקוי NaNs
+    spy_v = spy["Close"].dropna().values
+    qqq_v = qqq["Close"].dropna().values
+    btc_v = btc["Close"].dropna().values
+
+    min_len = min(len(spy_v), len(qqq_v), len(btc_v))
+
+    # אם אין מספיק נקודות (למשל בתחילת יום מסחר), מושכים יומיים אחורה
+    if min_len < 4:
         spy = yf.Ticker("SPY").history(period="2d", interval="5m", prepost=True).tail(78)
         qqq = yf.Ticker("QQQ").history(period="2d", interval="5m", prepost=True).tail(78)
         btc = yf.Ticker("BTC-USD").history(period="2d", interval="5m", prepost=True).tail(78)
-        min_len = min(len(spy), len(qqq), len(btc))
 
-    # 🔧 תיקון: חיתוך כל המערכים בדיוק לאורך min_len
-    spy_v = spy["Close"].values[-min_len:]
-    qqq_v = qqq["Close"].values[-min_len:]
-    btc_v = btc["Close"].values[-min_len:]
+        spy_v = spy["Close"].dropna().values
+        qqq_v = qqq["Close"].dropna().values
+        btc_v = btc["Close"].dropna().values
 
+        min_len = min(len(spy_v), len(qqq_v), len(btc_v))
+
+    # 2. חיתוך קשיח וסינכרוני של שלושת המערכים לפי האורך הקצר ביותר
+    spy_v = spy_v[-min_len:]
+    qqq_v = qqq_v[-min_len:]
+    btc_v = btc_v[-min_len:]
+
+    # 3. חישוב אחוזי השינוי על המערכים החתוכים (מבטיח אורך זהה ל-min_len)
     spy_pct = ((spy_v - spy_v[0]) / spy_v[0]) * 100
     qqq_pct = ((qqq_v - qqq_v[0]) / qqq_v[0]) * 100
     btc_pct = ((btc_v - btc_v[0]) / btc_v[0]) * 100
 
+    # 4. יצירת ציר X בדיוק באורך min_len
     x_raw = np.linspace(0, 1, min_len)
     x_smooth = np.linspace(0, 1, 300)
 
@@ -355,6 +369,7 @@ def fetch_intro_index_data():
         "BTC": (make_interp_spline(x_raw, btc_pct, k=3)(x_smooth), btc_v[-1]),
         "date_str": spy.index[-1].strftime("%b %d, %Y").upper()
     }
+
 
 
 def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: float) -> VideoClip:
