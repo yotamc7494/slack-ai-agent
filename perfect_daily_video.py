@@ -107,25 +107,32 @@ def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.m
 # ---------------------------------------------------------
 # 1. Download & Transcribe with Glossary (Point 2)
 # ---------------------------------------------------------
+import requests
+
 MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?channel_id=UCSxjNbPriyBh9RNl_QNSAtw"
 
 def get_latest_micha_video_url() -> Optional[str]:
+    logger.info("📡 Fetching latest video URL from YouTube RSS...")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
     try:
-        # הוספת User-Agent מונעת חסימת HTTP בדפדפנים ושרתים
-        req = urllib.request.Request(MICHA_STOCKS_RSS, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        })
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            root = ET.fromstring(resp.read())
+        response = requests.get(MICHA_STOCKS_RSS, headers=headers, timeout=10)
+        if response.status_code == 200:
+            root = ET.fromstring(response.content)
             entry = root.find("{http://www.w3.org/2005/Atom}entry")
             if entry is not None:
                 video_url = entry.find("{http://www.w3.org/2005/Atom}link").attrib.get("href")
                 title = entry.find("{http://www.w3.org/2005/Atom}title").text
                 logger.info(f"🎥 Found Latest Video: '{title}' ({video_url})")
                 return video_url
+        else:
+            logger.error(f"❌ Failed to fetch RSS: HTTP Status {response.status_code}")
     except Exception as e:
-        logger.error(f"Failed to fetch or parse RSS: {e}")
+        logger.error(f"❌ Exception fetching RSS: {e}")
     return None
+
 
 def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     logger.info(f"📥 Downloading audio from {video_url}...")
@@ -133,17 +140,23 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': 'micha_input.%(ext)s',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
         'quiet': True,
         'no_warnings': True,
-        # זיהוי כדפדפן רגיל ועקיפת ה-Anti-bot
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
+        'nocheckcertificate': True,
+        'geo_bypass': True,
+        # עקיפת חסימת 403 מול שרתי ענן:
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web'],
+                'player_client': ['android', 'ios'],
             }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         }
     }
     
@@ -154,6 +167,7 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     except Exception as e:
         logger.error(f"❌ yt-dlp download failed: {e}")
         raise e
+
 
 
 def transcribe_audio_with_gemini(audio_path: str) -> str:
