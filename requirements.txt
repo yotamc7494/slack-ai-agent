@@ -1,5 +1,5 @@
 requests
-
+youtube-transcript-api
 streamlit
 yfinance
 edge-tts
