@@ -42,7 +42,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("PerfectDailyVideo")
 
-MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?user=micha.stocks"
+MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?channel_id=UCSxjNbPriyBh9RNl_QNSAtw
+"
 
 # ---------------------------------------------------------
 # Pydantic Schemas for Structured LLM Output (Point 4)
@@ -123,10 +124,26 @@ def get_latest_micha_video_url() -> str:
 
 def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'micha_input.%(ext)s',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
-        'quiet': True
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'quiet': True,
+
+        'no_warnings': True,
+    # הגדרות לעקיפת חסימת 403 של יוטיוב:
+
+        'http_headers': {
+    
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+
+        'extractor_args': {
+    
+            'youtube': {
+        
+                'player_client': ['android', 'web'],
+    
+            }
+
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([video_url])
