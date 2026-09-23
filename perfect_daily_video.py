@@ -245,7 +245,8 @@ def fetch_intro_index_data():
         min_len = min(len(spy), len(qqq), len(btc))
 
     spy_pct = ((spy["Close"].values - spy["Close"].values[0]) / spy["Close"].values[0]) * 100
-    qqq_pct = ((qqq["Close"].values - qqq_pct_0 := qqq["Close"].values[0]) / qqq_pct_0) * 100
+    qqq_pct_0 = qqq["Close"].values[0]
+    qqq_pct = ((qqq["Close"].values - qqq_pct_0) / qqq_pct_0) * 100
     btc_pct = ((btc["Close"].values - btc["Close"].values[0]) / btc["Close"].values[0]) * 100
 
     x_raw = np.linspace(0, 1, min_len)
