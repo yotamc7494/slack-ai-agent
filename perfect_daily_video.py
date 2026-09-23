@@ -4,9 +4,8 @@ import logging
 import asyncio
 import json
 import re
-import urllib.request
 import xml.etree.ElementTree as ET
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 import numpy as np
@@ -19,6 +18,8 @@ import edge_tts
 from google import genai
 from google.genai import types
 import yt_dlp
+from youtube_transcript_api import YouTubeTranscriptApi
+import requests
 from moviepy.editor import (
     AudioFileClip,
     CompositeAudioClip,
@@ -43,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger("PerfectDailyVideo")
 
 # ---------------------------------------------------------
-# Pydantic Schemas for Structured LLM Output (Point 4)
+# Pydantic Schemas for Structured LLM Output
 # ---------------------------------------------------------
 class StockAnalysis(BaseModel):
     ticker: str = Field(description="Stock ticker symbol, e.g. NVDA")
@@ -62,7 +63,7 @@ class FullVideoScriptSchema(BaseModel):
     tags: str
 
 # ---------------------------------------------------------
-# Helper Functions & TTS Normalization (Point 1)
+# Helper Functions & TTS Normalization
 # ---------------------------------------------------------
 def get_gemini_client():
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -89,7 +90,7 @@ def clean_script_for_tts(text: str) -> str:
 
 def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.mp3") -> float:
     """
-    Point 6: Audio-First approach. Generates TTS audio and returns exact duration.
+    Generates TTS audio and returns exact duration.
     """
     clean_text = clean_script_for_tts(script_text)
     logger.info(f"🎙️ Generating TTS audio: {output_path}")
@@ -105,10 +106,8 @@ def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.m
     return duration
 
 # ---------------------------------------------------------
-# 1. Download & Transcribe with Glossary (Point 2)
+# 1. RSS, Transcript & Audio Fetching
 # ---------------------------------------------------------
-import requests
-
 MICHA_STOCKS_RSS = "https://www.youtube.com/feeds/videos.xml?channel_id=UCSxjNbPriyBh9RNl_QNSAtw"
 
 def get_latest_micha_video_url() -> Optional[str]:
@@ -134,11 +133,38 @@ def get_latest_micha_video_url() -> Optional[str]:
     return None
 
 
+def extract_video_id(url: str) -> Optional[str]:
+    """מחלץ את מזהה הסרטון מכתובת ה-URL"""
+    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
+    return match.group(1) if match else None
+
+
+def get_transcript_or_audio(video_url: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    מנסה למשוך תמליל ישירות מיוטיוב (מונע לגמרי שגיאות 403 בענן).
+    אם אין כתוביות, עובר להורדת MP3 כגיבוי.
+    מחזיר: (transcript_text, mp3_file_path)
+    """
+    video_id = extract_video_id(video_url)
+    if video_id:
+        try:
+            logger.info(f"📜 Trying direct transcript fetch for video ID: {video_id}...")
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['he', 'iw', 'en'])
+            full_text = " ".join([item['text'] for item in transcript_list])
+            logger.info("✅ Successfully retrieved transcript directly from YouTube!")
+            return full_text, None
+        except Exception as e:
+            logger.warning(f"⚠️ Direct transcript fetch failed ({e}). Falling back to yt-dlp audio download...")
+
+    mp3_path = download_youtube_audio(video_url)
+    return None, mp3_path
+
+
 def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     logger.info(f"📥 Downloading audio from {video_url}...")
     
     ydl_opts = {
-        'format': 'ba/b',  # עדיפות לפורמט אודיו בלבד
+        'format': 'ba/b',
         'outtmpl': 'micha_input.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -148,16 +174,13 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'source_address': '0.0.0.0',  # כפיית IPv4 בלבד (חיוני בשרתי ענן)
         'extractor_args': {
             'youtube': {
-                # קליינט TV עוקף חסימות IP של ענן ללא הצפנת n-sig מורכבת
-                'player_client': ['tv_embedded', 'mweb', 'android'],
+                'player_client': ['web_creator', 'mweb'],
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/537.42',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         }
     }
     
@@ -170,11 +193,9 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
         raise e
 
 
-
-
 def transcribe_audio_with_gemini(audio_path: str) -> str:
     """
-    Point 2: Financial Glossary Prompt for high Hebrew/Financial accuracy.
+    Financial Glossary Prompt for high Hebrew/Financial accuracy when audio is used.
     """
     logger.info("🧠 Transcribing audio with Financial Glossary Prompt...")
     client = get_gemini_client()
@@ -198,11 +219,11 @@ def transcribe_audio_with_gemini(audio_path: str) -> str:
     return response.text
 
 # ---------------------------------------------------------
-# 2. Market Data Verification (Point 5)
+# 2. Market Data Verification
 # ---------------------------------------------------------
 def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
     """
-    Point 5: Fetches ground-truth data from yfinance before script generation.
+    Fetches ground-truth data from yfinance before script generation.
     """
     logger.info("🔍 Extracting mentioned tickers and fetching ground-truth data...")
     client = get_gemini_client()
@@ -239,7 +260,7 @@ def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
 # ---------------------------------------------------------
 def generate_verified_script(transcript: str, verified_market_data: dict) -> FullVideoScriptSchema:
     """
-    Point 3 & 4: Generates structured JSON output with strict 65-75 words count limit for intro.
+    Generates structured JSON output with strict 65-75 words count limit for intro.
     """
     logger.info("📝 Generating structured video script...")
     client = get_gemini_client()
@@ -269,7 +290,7 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
     return FullVideoScriptSchema.model_validate_json(response.text)
 
 # ---------------------------------------------------------
-# 4. Dynamic 30-Sec Intro Rendering (Point 3)
+# 4. Dynamic 30-Sec Intro Rendering
 # ---------------------------------------------------------
 def fetch_intro_index_data():
     logger.info("📊 Fetching intraday index data...")
@@ -288,7 +309,6 @@ def fetch_intro_index_data():
     qqq_v = qqq["Close"].values
     btc_v = btc["Close"].values
 
-    # הפרדת ההצבות מהחישוב למניעת SyntaxError
     spy_pct_0 = spy_v[0]
     spy_pct = ((spy_v - spy_pct_0) / spy_pct_0) * 100
 
@@ -311,9 +331,6 @@ def fetch_intro_index_data():
 
 
 def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: float) -> VideoClip:
-    """
-    Point 3: Retention optimization. 3-part switching focus (QQQ -> SPY -> BTC) every 10 seconds.
-    """
     logger.info(f"🎨 Rendering 30-Sec Retention Intro (Duration: {duration:.2f}s)...")
     voice_clip = AudioFileClip(audio_path)
 
@@ -332,12 +349,10 @@ def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: floa
         ax.clear()
         ax.set_facecolor('#0B0E14')
 
-        # Determine active asset based on time (0-10s QQQ, 10-20s SPY, 20-30s BTC)
         segment_duration = duration / 3.0
         asset_idx = min(int(t // segment_duration), 2)
         active_asset = assets[asset_idx]
 
-        # Calculate animation progress for the current 10s segment
         local_t = t % segment_duration
         progress = min(local_t / segment_duration, 1.0)
         curr_step = max(1, int(progress * len(x_smooth)))
@@ -345,11 +360,9 @@ def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: floa
         y_vals, current_price = market_data[active_asset]
         c_color = colors[active_asset]
 
-        # Header Info
         fig.text(0.08, 0.93, f"MARKET OVERVIEW: {active_asset}", fontsize=24, fontweight='bold', color=c_color)
         fig.text(0.08, 0.89, f"{market_data['date_str']} | Current: ${current_price:,.2f}", fontsize=14, color='#8B949E')
 
-        # Plot active animating line
         ax.plot(x_smooth[:curr_step], y_vals[:curr_step], color=c_color, linewidth=4.0)
         ax.scatter(x_smooth[curr_step-1], y_vals[curr_step-1], color=c_color, s=150, zorder=10)
 
@@ -367,12 +380,9 @@ def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: floa
     return clip
 
 # ---------------------------------------------------------
-# 5. Dynamic Stock Chart with Annotations (Point 4)
+# 5. Dynamic Stock Chart with Annotations
 # ---------------------------------------------------------
 def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str, duration: float) -> VideoClip:
-    """
-    Point 4: Renders stock chart with overlay annotations (Key Levels, Breakout, Support/Resistance).
-    """
     ticker = stock_info.ticker
     logger.info(f"📈 Rendering annotated chart for {ticker} with key levels {stock_info.key_levels}...")
     voice_clip = AudioFileClip(audio_path)
@@ -397,7 +407,7 @@ def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float
     ax.vlines(x_idxs, lows, highs, color=candle_colors, linewidth=1.2)
     ax.bar(x_idxs, closes - opens, bottom=opens, color=candle_colors, width=0.6)
 
-    # Point 4: Draw Annotations / Key Levels
+    # Draw Annotations / Key Levels
     for level in stock_info.key_levels:
         ax.axhline(y=level, color='#FFD700', linestyle='--', linewidth=2.0, alpha=0.8)
         ax.text(x_idxs[-1], level, f" Key Level: ${level:.2f}", color='#FFD700', fontsize=12, fontweight='bold', va='center')
@@ -439,12 +449,19 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
     current_time = 0.0
 
     try:
-        # Step 1: Download & Transcribe with Glossary
+        # Step 1: Download & Transcribe (Direct Transcript or Fallback MP3)
         video_url = get_latest_micha_video_url()
-        audio_mp3 = download_youtube_audio(video_url)
-        temp_files.append(audio_mp3)
+        if not video_url:
+            raise ValueError("❌ Could not retrieve YouTube video URL from RSS.")
 
-        transcript = transcribe_audio_with_gemini(audio_mp3)
+        direct_transcript, audio_mp3 = get_transcript_or_audio(video_url)
+
+        if direct_transcript:
+            transcript = direct_transcript
+        else:
+            if audio_mp3:
+                temp_files.append(audio_mp3)
+            transcript = transcribe_audio_with_gemini(audio_mp3)
 
         # Step 2: Extract & Verify Market Data
         verified_data = extract_and_verify_ticker_data(transcript)
@@ -452,7 +469,7 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
         # Step 3: Structured Script Generation
         script_schema = generate_verified_script(transcript, verified_data)
 
-        # Step 4: Render Intro Clip (Audio-First Sync)
+        # Step 4: Render Intro Clip
         intro_audio_file = "temp_intro.mp3"
         intro_duration = generate_voiceover_audio(script_schema.intro_script, intro_audio_file)
         temp_files.append(intro_audio_file)
@@ -488,7 +505,8 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
 
     finally:
         for f in temp_files:
-            if os.path.exists(f): os.remove(f)
+            if os.path.exists(f): 
+                os.remove(f)
 
 if __name__ == "__main__":
     run_perfect_pipeline()
