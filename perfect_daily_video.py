@@ -138,7 +138,7 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     logger.info(f"📥 Downloading audio from {video_url}...")
     
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'ba/b',  # עדיפות לפורמט אודיו בלבד
         'outtmpl': 'micha_input.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -148,15 +148,16 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'geo_bypass': True,
-        # עקיפת חסימת 403 מול שרתי ענן:
+        'source_address': '0.0.0.0',  # כפיית IPv4 בלבד (חיוני בשרתי ענן)
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios'],
+                # קליינט TV עוקף חסימות IP של ענן ללא הצפנת n-sig מורכבת
+                'player_client': ['tv_embedded', 'mweb', 'android'],
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/537.42',
+            'Accept-Language': 'en-US,en;q=0.9',
         }
     }
     
@@ -167,6 +168,7 @@ def download_youtube_audio(video_url: str, output_mp3="micha_input.mp3") -> str:
     except Exception as e:
         logger.error(f"❌ yt-dlp download failed: {e}")
         raise e
+
 
 
 
