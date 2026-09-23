@@ -324,59 +324,62 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
 # 4. Dynamic 30-Sec Intro Rendering
 # ---------------------------------------------------------
 def fetch_intro_index_data():
+def fetch_intro_index_data():
     logger.info("📊 Fetching intraday index data...")
-    # ניקוי NaNs ברמת ה-DataFrame של כל הנכסים מראש
-    spy_df = yf.Ticker("SPY").history(period="1d", interval="5m", prepost=True).dropna()
-    qqq_df = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True).dropna()
-    btc_df = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True).dropna()
+    
+    # 1. משיכת הנתונים
+    spy = yf.Ticker("SPY").history(period="1d", interval="5m", prepost=True)
+    qqq = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True)
+    btc = yf.Ticker("BTC-USD").history(period="1d", interval="5m", prepost=True)
 
-    # המרה למערכי 1D נקיים של floats
-    spy_v = np.asarray(spy_df["Close"].values, dtype=float).flatten()
-    qqq_v = np.asarray(qqq_df["Close"].values, dtype=float).flatten()
-    btc_v = np.asarray(btc_df["Close"].values, dtype=float).flatten()
-
-    min_len = min(len(spy_v), len(qqq_v), len(btc_v))
-
-    if min_len < 4:
-        spy_df = yf.Ticker("SPY").history(period="2d", interval="5m", prepost=True).dropna().tail(78)
-        qqq_df = yf.Ticker("QQQ").history(period="2d", interval="5m", prepost=True).dropna().tail(78)
-        btc_df = yf.Ticker("BTC-USD").history(period="2d", interval="5m", prepost=True).dropna().tail(78)
-
-        spy_v = np.asarray(spy_df["Close"].values, dtype=float).flatten()
-        qqq_v = np.asarray(qqq_df["Close"].values, dtype=float).flatten()
-        btc_v = np.asarray(btc_df["Close"].values, dtype=float).flatten()
-        min_len = min(len(spy_v), len(qqq_v), len(btc_v))
-
-    # פונקציית עזר המבטיחה התאמה מלאה בין ציר X לציר Y
-    def build_smooth_curve(arr_1d, target_len):
-        trimmed = arr_1d[-target_len:]
-        pct_change = ((trimmed - trimmed[0]) / trimmed[0]) * 100.0
+    # 2. פונקציית מעטפת פנימית שמעבדת כל סדרה בנפרד באופן חסין שגיאות
+    def process_series(df, target_len=300):
+        if df is None or df.empty or "Close" not in df:
+            return np.zeros(target_len), 0.0
         
-        x_raw = np.linspace(0, 1, target_len)
-        x_smooth = np.linspace(0, 1, 300)
+        # חילוץ ערכים נקיים מ-NaN
+        vals = df["Close"].dropna().values.astype(float)
+        N = len(vals)
+        if N == 0:
+            return np.zeros(target_len), 0.0
         
-        if target_len >= 4:
-            spl = make_interp_spline(x_raw, pct_change, k=3)
+        # חישוב אחוז שינוי מנקודת התחלה
+        first_val = vals[0] if vals[0] != 0 else 1.0
+        pct = ((vals - first_val) / first_val) * 100.0
+        
+        x_smooth = np.linspace(0, 1, target_len)
+        
+        # יצירת x_raw שמתאים בדיוק ובאופן דינמי לאורך N של הסדרה הזו!
+        if N >= 4:
+            x_raw = np.linspace(0, 1, N)
+            spl = make_interp_spline(x_raw, pct, k=3)
             y_smooth = spl(x_smooth)
         else:
-            y_smooth = np.interp(x_smooth, x_raw, pct_change)
+            x_raw = np.linspace(0, 1, N)
+            y_smooth = np.interp(x_smooth, x_raw, pct)
             
-        return y_smooth, trimmed[-1]
+        return y_smooth, float(vals[-1])
+
+    # 3. עיבוד עצמאי של כל מדד (ללא תלות באורכים של המדדים האחרים)
+    spy_pct, spy_price = process_series(spy)
+    qqq_pct, qqq_price = process_series(qqq)
+    btc_pct, btc_price = process_series(btc)
 
     x_smooth = np.linspace(0, 1, 300)
-    qqq_smooth, qqq_last = build_smooth_curve(qqq_v, min_len)
-    spy_smooth, spy_last = build_smooth_curve(spy_v, min_len)
-    btc_smooth, btc_last = build_smooth_curve(btc_v, min_len)
 
-    date_label = spy_df.index[-1].strftime("%b %d, %Y").upper() if len(spy_df) > 0 else "TODAY"
+    # חילוץ תאריך
+    date_str = "TODAY"
+    if not spy.empty and hasattr(spy.index[-1], 'strftime'):
+        date_str = spy.index[-1].strftime("%b %d, %Y").upper()
 
     return {
         "x": x_smooth,
-        "QQQ": (qqq_smooth, qqq_last),
-        "SPY": (spy_smooth, spy_last),
-        "BTC": (btc_smooth, btc_last),
-        "date_str": date_label
+        "QQQ": (qqq_pct, qqq_price),
+        "SPY": (spy_pct, spy_price),
+        "BTC": (btc_pct, btc_price),
+        "date_str": date_str
     }
+
 
 
 
