@@ -324,7 +324,6 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
 # 4. Dynamic 30-Sec Intro Rendering
 # ---------------------------------------------------------
 def fetch_intro_index_data():
-def fetch_intro_index_data():
     logger.info("📊 Fetching intraday index data...")
     
     # 1. משיכת הנתונים
