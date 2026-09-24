@@ -436,7 +436,6 @@ def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: floa
 # 5. Dynamic Stock Chart with Annotations
 # ---------------------------------------------------------
 def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str, duration: float) -> VideoClip:
-def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str, duration: float) -> VideoClip:
     ticker = stock_info.ticker
     logger.info(f"📈 Rendering annotated chart for {ticker} with key levels {stock_info.key_levels}...")
     voice_clip = AudioFileClip(audio_path)
