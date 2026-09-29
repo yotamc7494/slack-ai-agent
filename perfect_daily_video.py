@@ -806,7 +806,7 @@ def run_perfect_pipeline(
         if upload and callable(upload_video):
             logger.info("🚀 Uploading video to YouTube...")
             upload_video(
-                video_file=output_filename,
+                file_path=output_filename,
                 title=script_schema.youtube_title,
                 description=final_description,
                 tags=script_schema.tags,
