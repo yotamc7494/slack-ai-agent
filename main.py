@@ -815,7 +815,7 @@ def view_final_video():
 
     print("🎬 Compositing Video with Captions...")
     all_layers = [bg_video,chart_clip, overlay_clip] + caption_clips
-    final_video = CompositeVideoClip(all_layers).set_audio(audio_clip).set_duration(duration)
+    final_video = CompositeVideoClip(all_layers).with_audio(audio_clip).with_duration(duration)
 
 
 
