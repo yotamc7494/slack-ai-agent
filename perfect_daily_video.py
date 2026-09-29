@@ -337,8 +337,8 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
     client = get_gemini_client()
 
     prompt = f"""
-    You are a top-tier Wall Street video producer and YouTube finance creator.
-    Synthesize this transcript and VERIFIED market data into an English script for YouTube Shorts/Videos.
+    You are a top-tier Wall Street video producer and YouTube Shorts retention strategist.
+    Synthesize this transcript and VERIFIED market data into an English script for short-form video.
 
     Raw Transcript:
     {transcript}
@@ -347,10 +347,15 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
     {json.dumps(verified_market_data, indent=2)}
 
     CRITICAL SCRIPTING & CTA RULES:
-    1. "intro_script": STRICTLY 65 TO 75 WORDS (~70 words). High-stakes hook summarizing market action for QQQ, SPY, and BTC. End intro with a strong question encouraging comments.
+    1. "intro_script": ULTRA-SHORT SCROLL-STOPPING HOOK (STRICTLY 15 TO 25 WORDS, ~5-7 SECONDS). 
+       - DO NOT give a broad market summary. Focus ONLY on the single biggest market shock, catalyst, or extreme price move across QQQ, SPY, or BTC.
+       - Use high-impact, dramatic trigger words (e.g., 'Wall Street is in panic mode', 'Massive breakout underway', 'Liquidation wave hitting markets').
+       - Transition IMMEDIATELY into the stock breakdowns without fluff.
+
     2. "analyzed_stocks": Max 4 key stocks. Provide exact technical key levels (e.g. [120.0, 125.0]).
        - In the narrative script, DO NOT just give flat facts. Explicitly explain WHAT is expected to happen when price reaches those key levels (e.g., "If Nvidia breaks above 125, expect a rally toward 135. But if support at 120 fails, a quick drop is coming!").
        - End each stock breakdown with a sharp, context-aware closing line tied directly to the key price level (e.g., 'If 125 holds, this could squeeze fast—if not, watch out below.', or '120 is the absolute line in the sand tomorrow.'). NEVER use repetitive generic phrases like 'Drop your thoughts below' or 'What do you think'.
+
     3. ABSOLUTELY NO EMOJIS in any field (title, description, scripts, tags). Emojis fail to render properly.
     4. Accentuate actionable key levels and price targets.
     """
