@@ -12,7 +12,7 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from moviepy.audio.io.AudioFileClip import AudioFileClip
-from moviepy.editor import VideoClip, concatenate_videoclips
+from moviepy import VideoClip, concatenate_videoclips
 from numpy import random
 
 from index_section_generator import generate_voiceover_audio

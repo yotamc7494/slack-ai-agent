@@ -22,7 +22,7 @@ import edge_tts
 from google import genai
 from google.genai import types
 from thumbnail import generate_daily_thumbnail
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip,
     CompositeAudioClip,
     VideoClip,

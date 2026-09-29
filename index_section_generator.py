@@ -5,12 +5,12 @@ import asyncio
 import edge_tts
 import numpy as np
 import os
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip,
     CompositeAudioClip,
     VideoClip,
-    afx,
 )
+import moviepy.audio.fx as afx
 import json
 from google import genai
 from google.genai import types
@@ -19,7 +19,7 @@ from scipy.interpolate import make_interp_spline
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.lines import Line2D
-from moviepy.editor import VideoClip, AudioFileClip
+
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone

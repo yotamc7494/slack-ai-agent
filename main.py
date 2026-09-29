@@ -22,7 +22,7 @@ from google import genai
 from google.genai import types
 from upstash_redis import Redis
 
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip, ImageClip, VideoClip, CompositeVideoClip, VideoFileClip
 )
 from uploader import upload_video

@@ -11,7 +11,7 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from moviepy.audio.io.AudioFileClip import AudioFileClip
-from moviepy.editor import VideoClip, concatenate_videoclips
+from moviepy import VideoClip, concatenate_videoclips
 import numpy as np
 
 load_dotenv()

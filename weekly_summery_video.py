@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import matplotlib.pyplot as plt
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip,
     CompositeAudioClip,
     VideoFileClip,

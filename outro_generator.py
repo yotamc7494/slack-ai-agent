@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from moviepy.editor import VideoClip
+from moviepy import VideoClip
 
 
 def render_outro_frame(t=0):
