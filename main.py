@@ -557,7 +557,7 @@ def create_caption_clip(text, duration, canvas_size=(1000, 220)):
     img_filename = f"temp_cap_{abs(hash(text))}.png"
     img.save(img_filename)
 
-    clip = ImageClip(img_filename).set_duration(duration)
+    clip = ImageClip(img_filename).with_duration(duration)
     return clip, img_filename
 
 # -----------------------------------------------------------------------------
