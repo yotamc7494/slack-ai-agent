@@ -650,11 +650,13 @@ def create_comparison_fomo_video(
             bg_music = bg_music.fx(afx.audio_loop, duration=total_duration)
 
         bg_music = (
-            bg_music.subclip(0, total_duration)
-            .fx(afx.volumex, 0.15)
-            .fx(afx.audio_fadeout, 2)
+            bg_music.subclipped(0, total_duration)
+            .with_effects([
+                afx.MultiplyVolume(0.15),
+                afx.AudioFadeOut(2)
+            ])
         )
-        final_video = final_video.set_audio(bg_music)
+        final_video = final_video.with_audio(bg_music)
 
     print(f"🎬 Rendering final video: {output_filename}...", flush=True)
 
