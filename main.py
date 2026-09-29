@@ -25,6 +25,7 @@ from upstash_redis import Redis
 from moviepy import (
     AudioFileClip, ImageClip, VideoClip, CompositeVideoClip, VideoFileClip
 )
+import moviepy.video.fx as vfx
 from uploader import upload_video
 import imageio_ffmpeg
 
@@ -809,7 +810,7 @@ def view_final_video():
     print("📊 Rendering Animated Stock Chart...")
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
     bg_video = VideoFileClip("assets/trading_floor_videos/1.mp4")
-    bg_video = bg_video.loop(duration=duration)
+    bg_video = bg_video.with_effects([vfx.Loop(duration=duration)])
     bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)
     bg_video = bg_video.fl_image(lambda frame: (frame * 0.22).astype('uint8'))
 
