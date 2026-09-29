@@ -1,4 +1,5 @@
 import os
+os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
 import sys
 import logging
 import asyncio
