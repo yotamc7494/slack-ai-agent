@@ -811,37 +811,40 @@ def view_final_video():
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
     bg_video = VideoFileClip("assets/trading_floor_videos/1.mp4")
     bg_video = bg_video.with_effects([vfx.Loop(duration=duration)])
-    bg_video = bg_video.resize(height=1920).crop(x_center=bg_video.w / 2, width=1080)
-    bg_video = bg_video.fl_image(lambda frame: (frame * 0.22).astype('uint8'))
+    bg_video = bg_video.resized(height=1920).cropped(x_center=bg_video.w / 2, width=1080)
+
+    # עמעום הווידאו (במקום fl_image משתמשים ב-image_transform או ב-vfx.MultiplyColor)
+    bg_video = bg_video.image_transform(lambda frame: (frame * 0.22).astype('uint8'))
 
     print("🎬 Compositing Video with Captions...")
-    all_layers = [bg_video,chart_clip, overlay_clip] + caption_clips
+    all_layers = [bg_video, chart_clip, overlay_clip] + caption_clips
     final_video = CompositeVideoClip(all_layers).with_audio(audio_clip).with_duration(duration)
-
-
 
     clean_symbol = stock_data['symbol']
     output_filename = f"STOCK_{clean_symbol}_{int(stock_data['change_pct'])}pct.mp4"
+
+    # תמונה מקדימה ל-Streamlit
     preview_frame = final_video.get_frame(t=2.0)
     st.image(
         preview_frame,
         caption="📸 תמונה מקדימה מתוך final_video (לפני הרינדור)",
         use_container_width=True
     )
+
     try:
         final_video.write_videofile(
             output_filename,
             fps=24,
             codec="libx264",
             audio_codec="aac",
-            logger=None,  # ⬅️ קריטי: מכבה את מד ההתקדמות שחוסם את Streamlit
-            threads=1,  # ⬅️ קריטי: מונע התנגשות תהליכונים (Threads) בתוך Streamlit
+            logger=None,  # מכבה את מד ההתקדמות שחוסם את Streamlit
+            threads=1,  # מונע התנגשות תהליכונים ב-Streamlit
             preset="ultrafast"
         )
     except Exception as e:
-        print(e)
+        print(f"Error during video export: {e}")
 
-    # --- ניקוי כל קבצי התמונות והאודיו הזמניים ---
+    # --- ניקוי קבצים זמניים ---
     for tmp in temp_cap_files + [overlay_img_path, audio_file]:
         if os.path.exists(tmp):
             try:
