@@ -637,7 +637,7 @@ def create_comparison_fomo_video(
         size=(width, height),
     )
 
-    freeze_frame = final_video.to_ImageClip(t=duration - 0.1).set_duration(1.0)
+    freeze_frame = final_video.to_ImageClip(t=duration - 0.1).with_duration(1.0)
     final_video = concatenate_videoclips([final_video, freeze_frame])
 
     total_duration = duration + 1.0
