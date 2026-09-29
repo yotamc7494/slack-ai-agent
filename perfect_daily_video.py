@@ -20,15 +20,15 @@ from google.genai import types
 import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
 import requests
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip,
     CompositeAudioClip,
     VideoClip,
     TextClip,
     CompositeVideoClip,
     concatenate_videoclips,
-    afx,
 )
+import moviepy.audio.fx as afx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,14 +49,14 @@ logger = logging.getLogger("PerfectDailyVideo")
 class StockAnalysis(BaseModel):
     ticker: str = Field(description="Stock ticker symbol, e.g. NVDA")
     company_spoken_name: str = Field(description="Full spoken company name for TTS, e.g. Nvidia")
-    script: str = Field(description="Spoken narrative for TTS (15-20s, ~40 words). Numbers spelled out.")
+    script: str = Field(description="Spoken narrative for TTS (~40 words). Includes high CTA and level targets.")
     timeframe: str = Field(description="Chart timeframe: '1d', '1mo', '3mo', '6mo', or '1y'")
     interval: str = Field(description="Chart interval: '5m' for 1d, '1d' for others")
     key_levels: List[float] = Field(default=[], description="Important price levels to highlight on chart")
     highlight_type: str = Field(default="none", description="Type of overlay: 'breakout', 'support', 'resistance', or 'none'")
 
 class FullVideoScriptSchema(BaseModel):
-    intro_script: str = Field(description="STRICTLY 65 to 75 words English intro script for 30 seconds audio.")
+    intro_script: str = Field(description="STRICTLY 65 to 75 words English intro script with high CTA.")
     analyzed_stocks: List[StockAnalysis]
     youtube_title: str
     description: str
@@ -68,7 +68,7 @@ class FullVideoScriptSchema(BaseModel):
 def get_gemini_client():
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("🚨 GEMINI_API_KEY is missing!")
+        raise ValueError("GEMINI_API_KEY is missing!")
     return genai.Client(api_key=api_key)
 
 def format_seconds_to_timestamp(seconds: float) -> str:
@@ -77,7 +77,8 @@ def format_seconds_to_timestamp(seconds: float) -> str:
     return f"{mins:02d}:{secs:02d}"
 
 def clean_script_for_tts(text: str) -> str:
-    """Narrows ticker symbols & characters into phonetic words."""
+    """Removes non-ASCII characters/emojis & converts symbols for clear TTS."""
+    text = re.sub(r'[^\x00-\x7F]+', '', text)  # Strips emojis
     text = text.replace("$", "").replace("%", " percent")
     replacements = {
         r'\bNVDA\b': 'Nvidia', r'\bTSLA\b': 'Tesla', r'\bAAPL\b': 'Apple',
@@ -90,7 +91,7 @@ def clean_script_for_tts(text: str) -> str:
 
 def generate_voiceover_audio(script_text: str, output_path: str = "temp_speech.mp3") -> float:
     clean_text = clean_script_for_tts(script_text)
-    logger.info(f"🎙️ Generating TTS audio: {output_path}")
+    logger.info(f"Generating TTS audio: {output_path}")
 
     async def _save():
         comm = edge_tts.Communicate(clean_text, "en-US-ChristopherNeural", rate="+5%")
@@ -137,51 +138,93 @@ def extract_video_id(url: str) -> Optional[str]:
 
 def fetch_youtube_transcript_robust(video_id: str) -> Optional[str]:
     """
-    תומך בכל הגרסאות של youtube-transcript-api (ישנות וחדשות).
+    תומך בכל הגרסאות של youtube-transcript-api (כולל כתוביות אוטומטיות בעברית iw).
     אם התמליל נכשל, מבצע חילוץ כתוביות דרך yt-dlp ללא הורדת אודיו/וידאו.
     """
     logger.info(f"📜 Attempting to fetch transcript for video ID: {video_id}...")
+    # 'iw' היא השפה הראשית של כתוביות אוטומטיות בעברית ביוטיוב!
+    target_languages = ['iw', 'he', 'en']
 
-    # דרך 1: בדיקת מתודה סטטית (גרסאות ישנות)
-    if hasattr(YouTubeTranscriptApi, 'get_transcript'):
-        try:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['he', 'iw', 'en'])
-            text = " ".join([item['text'] if isinstance(item, dict) else getattr(item, 'text', '') for item in transcript])
+    # דרך 1: קריאה ל-get_transcript ברמת המחלקה
+    try:
+        if hasattr(YouTubeTranscriptApi, 'get_transcript'):
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=target_languages)
+            text = " ".join([
+                item['text'] if isinstance(item, dict) else getattr(item, 'text', '')
+                for item in transcript
+            ])
             if text.strip():
                 logger.info("✅ Retrieved transcript via static YouTubeTranscriptApi.get_transcript")
                 return text
-        except Exception as e:
-            logger.warning(f"⚠️ Static get_transcript failed: {e}")
+    except Exception as e:
+        logger.warning(f"⚠️ Static get_transcript failed: {e}")
 
-    # דרך 2: יצירת אובייקט (גרסאות חדשות)
+    # דרך 2: שימוש ב-list_transcripts (תומך בכתוביות אוטומטיות iw/he)
+    try:
+        if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            try:
+                transcript_obj = transcript_list.find_transcript(target_languages)
+            except Exception:
+                # ניסיון למצוא כתוביות שנוצרו אוטומטית (generated)
+                transcript_obj = transcript_list.find_generated_transcript(target_languages)
+
+            transcript_data = transcript_obj.fetch()
+            text = " ".join([
+                item['text'] if isinstance(item, dict) else getattr(item, 'text', '')
+                for item in transcript_data
+            ])
+            if text.strip():
+                logger.info(f"✅ Retrieved transcript via list_transcripts ({transcript_obj.language_code})")
+                return text
+    except Exception as e:
+        logger.warning(f"⚠️ list_transcripts failed: {e}")
+
+    # דרך 3: ניסיון יצירת אובייקט (לגרסאות חדשות של הספריה)
     try:
         api_instance = YouTubeTranscriptApi()
         fetch_method = getattr(api_instance, 'fetch', getattr(api_instance, 'get_transcript', None))
         if fetch_method:
-            transcript = fetch_method(video_id)
-            text = " ".join([item.text if hasattr(item, 'text') else item.get('text', '') for item in transcript])
+            try:
+                transcript = fetch_method(video_id, languages=target_languages)
+            except TypeError:
+                transcript = fetch_method(video_id)
+
+            text = " ".join([
+                item.text if hasattr(item, 'text') else item.get('text', '')
+                for item in transcript
+            ])
             if text.strip():
                 logger.info("✅ Retrieved transcript via YouTubeTranscriptApi instance call")
                 return text
     except Exception as e:
         logger.warning(f"⚠️ Instance transcript fetch failed: {e}")
 
-    # דרך 3: חילוץ כתוביות טקסט ישירות מ-yt-dlp ללא הורדת קובץ המדיה (עוקף חסימות Bot)
+    # דרך 4: חילוץ כתוביות טקסט ישירות מ-yt-dlp (כולל עקיפת מנגנוני anti-bot)
     try:
         logger.info("📜 Falling back to yt-dlp subtitle metadata extraction...")
         ydl_opts = {
             'skip_download': True,
             'writesubtitles': True,
             'writeautomaticsub': True,
-            'subtitleslangs': ['he', 'iw', 'en'],
+            'subtitleslangs': target_languages,
             'quiet': True,
             'no_warnings': True,
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mweb', 'android', 'tv_embedded'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            }
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
             subtitles = info.get('subtitles') or info.get('automatic_captions')
             if subtitles:
-                for lang in ['he', 'iw', 'en']:
+                for lang in target_languages:
                     if lang in subtitles:
                         json_sub = next((s['url'] for s in subtitles[lang] if s.get('ext') == 'json3'), None)
                         if json_sub:
@@ -203,35 +246,32 @@ def fetch_youtube_transcript_robust(video_id: str) -> Optional[str]:
     return None
 
 
-def download_youtube_audio_fallback(video_url: str, output_mp3="micha_input.mp3") -> str:
-    """מופעל רק כגיבוי אחרון אם לא נמצאו כתוביות כלל"""
+def download_youtube_audio_fallback(video_url: str, output_path="micha_input.m4a") -> str:
+    """
+    מופעל רק כגיבוי אחרון אם לא נמצאו כתוביות כלל.
+    מוריד אודיו בפורמט m4a ישיר ללא צורך בהמרת FFmpeg.
+    """
     logger.info(f"📥 Downloading audio fallback from {video_url}...")
-    
+
     ydl_opts = {
-        'format': 'ba/b',
-        'outtmpl': 'micha_input.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
+        'format': 'm4a/bestaudio/best',  # הורדה ישירה של קובץ אודיו ללא צורך ב-FFmpeg
+        'outtmpl': output_path,
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android'],
+                'player_client': ['mweb', 'android', 'tv_embedded', 'ios'],
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         }
     }
-    
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([video_url])
-    return output_mp3
-
+    return output_path
 
 def transcribe_audio_with_gemini(audio_path: str) -> str:
     logger.info("🧠 Transcribing audio with Financial Glossary Prompt...")
@@ -261,10 +301,9 @@ def transcribe_audio_with_gemini(audio_path: str) -> str:
 def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
     logger.info("🔍 Extracting mentioned tickers and fetching ground-truth data...")
     client = get_gemini_client()
-    
+
     prompt = f"Extract all stock tickers mentioned in this text as a JSON array of strings (e.g. ['NVDA', 'TSLA']): {raw_transcript}"
     res = client.models.generate_content(model="gemini-flash-lite-latest", contents=prompt)
-    
     tickers = []
     try:
         tickers = json.loads(re.search(r'\[.*\]', res.text, re.DOTALL).group(0))
@@ -293,11 +332,12 @@ def extract_and_verify_ticker_data(raw_transcript: str) -> dict:
 # 3. AI Script Generation with Structured Schema
 # ---------------------------------------------------------
 def generate_verified_script(transcript: str, verified_market_data: dict) -> FullVideoScriptSchema:
-    logger.info("📝 Generating structured video script...")
+    logger.info("Generating structured video script with enhanced CTA...")
     client = get_gemini_client()
 
     prompt = f"""
-    You are a Wall Street video producer. Synthesize this transcript and VERIFIED market data into an English script for YouTube.
+    You are a top-tier Wall Street video producer and YouTube finance creator.
+    Synthesize this transcript and VERIFIED market data into an English script for YouTube Shorts/Videos.
 
     Raw Transcript:
     {transcript}
@@ -305,9 +345,13 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
     Verified Market Data (MUST USE THESE EXACT NUMBERS):
     {json.dumps(verified_market_data, indent=2)}
 
-    RULES:
-    1. "intro_script": EXACTLY 65 TO 75 WORDS (~70 words). Covers market summary for 30s audio speed. Spell out numbers!
-    2. "analyzed_stocks": Max 4 key stocks. Provide exact technical key levels (e.g. [120.0, 125.0]) and highlight_type ('breakout', 'support', 'resistance', 'none').
+    CRITICAL SCRIPTING & CTA RULES:
+    1. "intro_script": STRICTLY 65 TO 75 WORDS (~70 words). High-stakes hook summarizing market action for QQQ, SPY, and BTC. End intro with a strong question encouraging comments.
+    2. "analyzed_stocks": Max 4 key stocks. Provide exact technical key levels (e.g. [120.0, 125.0]).
+       - In the narrative script, DO NOT just give flat facts. Explicitly explain WHAT is expected to happen when price reaches those key levels (e.g., "If Nvidia breaks above 125, expect a rally toward 135. But if support at 120 fails, a quick drop is coming!").
+       - End each stock breakdown with a sharp, context-aware closing line tied directly to the key price level (e.g., 'If 125 holds, this could squeeze fast—if not, watch out below.', or '120 is the absolute line in the sand tomorrow.'). NEVER use repetitive generic phrases like 'Drop your thoughts below' or 'What do you think'.
+    3. ABSOLUTELY NO EMOJIS in any field (title, description, scripts, tags). Emojis fail to render properly.
+    4. Accentuate actionable key levels and price targets.
     """
 
     response = client.models.generate_content(
@@ -325,7 +369,7 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
 # ---------------------------------------------------------
 def fetch_intro_index_data():
     logger.info("📊 Fetching intraday index data...")
-    
+
     # 1. משיכת הנתונים
     spy = yf.Ticker("SPY").history(period="1d", interval="5m", prepost=True)
     qqq = yf.Ticker("QQQ").history(period="1d", interval="5m", prepost=True)
@@ -335,19 +379,19 @@ def fetch_intro_index_data():
     def process_series(df, target_len=300):
         if df is None or df.empty or "Close" not in df:
             return np.zeros(target_len), 0.0
-        
+
         # חילוץ ערכים נקיים מ-NaN
         vals = df["Close"].dropna().values.astype(float)
         N = len(vals)
         if N == 0:
             return np.zeros(target_len), 0.0
-        
+
         # חישוב אחוז שינוי מנקודת התחלה
         first_val = vals[0] if vals[0] != 0 else 1.0
         pct = ((vals - first_val) / first_val) * 100.0
-        
+
         x_smooth = np.linspace(0, 1, target_len)
-        
+
         # יצירת x_raw שמתאים בדיוק ובאופן דינמי לאורך N של הסדרה הזו!
         if N >= 4:
             x_raw = np.linspace(0, 1, N)
@@ -356,7 +400,7 @@ def fetch_intro_index_data():
         else:
             x_raw = np.linspace(0, 1, N)
             y_smooth = np.interp(x_smooth, x_raw, pct)
-            
+
         return y_smooth, float(vals[-1])
 
     # 3. עיבוד עצמאי של כל מדד (ללא תלות באורכים של המדדים האחרים)
@@ -380,127 +424,262 @@ def fetch_intro_index_data():
     }
 
 
+def render_outro_clip(duration: float = 5.0) -> VideoClip:
+    logger.info("Rendering Outro Screen with CTA...")
+    fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
+    canvas = FigureCanvasAgg(fig)
+    fig.patch.set_facecolor('#0B0E14')
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_facecolor('#0B0E14')
+    ax.axis('off')
 
+    fig.text(0.5, 0.65, "THANKS FOR WATCHING!", fontsize=38, fontweight='bold', color='#00FFA3', ha='center')
+    fig.text(0.5, 0.50, "LIKE & SUBSCRIBE FOR DAILY MARKET RECAPS", fontsize=24, fontweight='bold', color='#FFFFFF', ha='center')
+    fig.text(0.5, 0.38, "What is your target? Drop your thoughts in the comments below!", fontsize=18, color='#8B949E', ha='center')
+
+    # 🚀 רינדור פעם אחת מחוץ ל-make_frame למניעת חישובים חוזרים
+    canvas.draw()
+    frame_img = np.asarray(canvas.buffer_rgba())[:, :, :3]
+    plt.close(fig)
+
+    def make_frame(t):
+        return frame_img
+
+    return VideoClip(make_frame, duration=duration)
 
 
 def render_dynamic_intro_clip(market_data: dict, audio_path: str, duration: float) -> VideoClip:
-    logger.info(f"🎨 Rendering 30-Sec Retention Intro (Duration: {duration:.2f}s)...")
+    logger.info(f"Rendering Dynamic Intro (Duration: {duration:.2f}s)...")
     voice_clip = AudioFileClip(audio_path)
 
     fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
     canvas = FigureCanvasAgg(fig)
-    fig.patch.set_facecolor('#0B0E14')
-
-    ax = fig.add_axes([0.08, 0.12, 0.88, 0.73])
-    ax.set_facecolor('#0B0E14')
 
     x_smooth = market_data["x"]
     assets = ["QQQ", "SPY", "BTC"]
     colors = {"QQQ": "#00E5FF", "SPY": "#00FFA3", "BTC": "#FFB800"}
+    seg_dur = duration / 3.0
+
+    frame_cache = {}  # 🚀 מטמון זיכרון מואץ
 
     def make_frame(t):
-        ax.clear()
-        ax.set_facecolor('#0B0E14')
-
-        segment_duration = duration / 3.0
-        asset_idx = min(int(t // segment_duration), 2)
-        active_asset = assets[asset_idx]
-
-        local_t = t % segment_duration
-        progress = min(local_t / segment_duration, 1.0)
+        asset_idx = min(int(t // seg_dur), 2)
+        local_t = t % seg_dur
+        progress = min(local_t / seg_dur, 1.0)
         curr_step = max(1, int(progress * len(x_smooth)))
 
-        y_vals, current_price = market_data[active_asset]
-        c_color = colors[active_asset]
+        cache_key = (asset_idx, curr_step)
+        if cache_key in frame_cache:
+            return frame_cache[cache_key]
 
-        fig.text(0.08, 0.93, f"MARKET OVERVIEW: {active_asset}", fontsize=24, fontweight='bold', color=c_color)
-        fig.text(0.08, 0.89, f"{market_data['date_str']} | Current: ${current_price:,.2f}", fontsize=14, color='#8B949E')
+        fig.clf()
+        fig.patch.set_facecolor('#0B0E14')
+        ax = fig.add_axes([0.08, 0.12, 0.88, 0.73])
+        ax.set_facecolor('#0B0E14')
 
-        ax.plot(x_smooth[:curr_step], y_vals[:curr_step], color=c_color, linewidth=4.0)
-        ax.scatter(x_smooth[curr_step-1], y_vals[curr_step-1], color=c_color, s=150, zorder=10)
+        fig.text(0.08, 0.93, "MARKET OVERVIEW: QQQ | SPY | BTC", fontsize=24, fontweight='bold', color='#FFFFFF')
+        fig.text(0.08, 0.89, f"{market_data['date_str']} | Cumulative Intraday Trend", fontsize=14, color='#8B949E')
 
-        ax.set_xlim(-0.02, 1.02)
-        ax.set_ylim(min(y_vals) - 0.5, max(y_vals) + 0.5)
+        all_visible_y = []
+        for idx, asset in enumerate(assets):
+            y_vals, current_price = market_data[asset]
+            c_color = colors[asset]
+            asset_start_t = idx * seg_dur
+
+            if t < asset_start_t:
+                continue
+            elif t >= asset_start_t + seg_dur:
+                p_step = len(x_smooth)
+            else:
+                p_step = curr_step
+
+            ax.plot(x_smooth[:p_step], y_vals[:p_step], color=c_color, linewidth=3.5, label=asset)
+            ax.scatter(x_smooth[p_step-1], y_vals[p_step-1], color=c_color, s=120, zorder=10)
+
+            ax.text(
+                x_smooth[p_step-1], y_vals[p_step-1],
+                f" {asset}: ${current_price:,.2f}",
+                color=c_color, fontsize=13, fontweight='bold', va='center',
+                bbox=dict(boxstyle="round,pad=0.2", facecolor='#0B0E14', edgecolor=c_color, alpha=0.85)
+            )
+            all_visible_y.extend(y_vals[:p_step])
+
+        ax.set_xlim(-0.02, 1.15)
+        if all_visible_y:
+            ax.set_ylim(min(all_visible_y) - 0.5, max(all_visible_y) + 0.8)
+
         ax.grid(True, linestyle='--', alpha=0.15, color='#8B949E')
-
         for spine in ['top', 'right']: ax.spines[spine].set_visible(False)
         for spine in ['left', 'bottom']: ax.spines[spine].set_color('#30363D')
 
         canvas.draw()
-        return np.asarray(canvas.buffer_rgba())[:, :, :3]
+        frame_img = np.asarray(canvas.buffer_rgba())[:, :, :3]
+        frame_cache[cache_key] = frame_img
+        return frame_img
 
-    clip = VideoClip(make_frame, duration=duration).set_audio(voice_clip)
+    clip = VideoClip(make_frame, duration=duration).with_audio(voice_clip)
     return clip
 
 # ---------------------------------------------------------
 # 5. Dynamic Stock Chart with Annotations
 # ---------------------------------------------------------
-def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str, duration: float) -> VideoClip:
+
+
+def render_annotated_stock_clip(stock_info: StockAnalysis, verified_price: float, audio_path: str,
+                                duration: float) -> VideoClip:
     ticker = stock_info.ticker
-    logger.info(f"📈 Rendering annotated chart for {ticker} with key levels {stock_info.key_levels}...")
+    logger.info(f"Rendering animated chart for {ticker} with levels {stock_info.key_levels}...")
     voice_clip = AudioFileClip(audio_path)
 
-    # 🔧 ניקוי NaNs ברמת ה-DataFrame כדי שכל העמודות (Open, High, Low, Close) יחזקו אורך זהה לחלוטין
     df = yf.Ticker(ticker).history(period=stock_info.timeframe, interval=stock_info.interval, prepost=True).dropna()
     if df.empty:
         df = yf.Ticker(ticker).history(period="1mo", interval="1d").dropna()
 
     fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
     canvas = FigureCanvasAgg(fig)
-    fig.patch.set_facecolor('#0B0E14')
-
-    ax = fig.add_axes([0.08, 0.10, 0.88, 0.70])
-    ax.set_facecolor('#0B0E14')
 
     opens = np.asarray(df['Open'].values, dtype=float).flatten()
     closes = np.asarray(df['Close'].values, dtype=float).flatten()
     highs = np.asarray(df['High'].values, dtype=float).flatten()
     lows = np.asarray(df['Low'].values, dtype=float).flatten()
-    
+
     x_idxs = np.arange(len(df))
     candle_colors = np.where(closes >= opens, '#00FFA3', '#FF3366')
 
-    # Draw Candlesticks
-    ax.vlines(x_idxs, lows, highs, color=candle_colors, linewidth=1.2)
-    ax.bar(x_idxs, closes - opens, bottom=opens, color=candle_colors, width=0.6)
-
-    # Draw Annotations / Key Levels
-    for level in stock_info.key_levels:
-        ax.axhline(y=level, color='#FFD700', linestyle='--', linewidth=2.0, alpha=0.8)
-        ax.text(x_idxs[-1], level, f" Key Level: ${level:.2f}", color='#FFD700', fontsize=12, fontweight='bold', va='center')
-
-    # Highlight Callouts
-    if stock_info.highlight_type.lower() == "breakout":
-        ax.annotate('🔥 BREAKOUT ZONE', xy=(x_idxs[-1], closes[-1]), xytext=(x_idxs[-1] - 10, closes[-1] * 1.03),
-                    arrowprops=dict(facecolor='#00FFA3', shrink=0.05), fontsize=14, fontweight='bold', color='#00FFA3')
-    elif stock_info.highlight_type.lower() == "support":
-        ax.annotate('🛡️ SUPPORT LEVEL', xy=(x_idxs[-1], lows.min()), xytext=(x_idxs[-1] - 10, lows.min() * 0.97),
-                    arrowprops=dict(facecolor='#00E5FF', shrink=0.05), fontsize=14, fontweight='bold', color='#00E5FF')
-
-    fig.text(0.08, 0.90, f"{ticker} - {stock_info.company_spoken_name}", fontsize=26, fontweight='bold', color='#FFFFFF')
-    fig.text(0.08, 0.85, f"Verified Price: ${verified_price:.2f} | Timeframe: {stock_info.timeframe}", fontsize=14, color='#8B949E')
-
-    ax.set_xlim(-1, len(df))
-    ax.grid(True, linestyle='--', alpha=0.15, color='#8B949E')
-    for spine in ['top', 'right']: ax.spines[spine].set_visible(False)
+    y_min, y_max = lows.min(), highs.max()
+    y_range = max(1.0, y_max - y_min)
 
     def make_frame(t):
+        fig.clf()
+        fig.patch.set_facecolor('#0B0E14')
+
+        ax = fig.add_axes([0.08, 0.10, 0.88, 0.70])
+        ax.set_facecolor('#0B0E14')
+
+        # Draw Candlesticks
+        ax.vlines(x_idxs, lows, highs, color=candle_colors, linewidth=1.2)
+        ax.bar(x_idxs, closes - opens, bottom=opens, color=candle_colors, width=0.6)
+
+        # Dynamic motion: subtle zoom-in over time
+        progress = min(t / duration, 1.0)
+        start_x = int(len(df) * 0.15 * progress)
+        end_x = len(df) - 1
+        ax.set_xlim(start_x, end_x + max(2, int(len(df) * 0.05)))
+        ax.set_ylim(y_min - y_range * 0.05, y_max + y_range * 0.12)
+
+        # Blinking / pulsing key levels
+        blink_alpha = 0.45 + 0.45 * np.abs(np.sin(np.pi * t * 1.5))
+
+        for level in stock_info.key_levels:
+            ax.axhline(y=level, color='#FFD700', linestyle='--', linewidth=2.0, alpha=blink_alpha)
+
+            # Position label ABOVE the level line and shifted LEFT inside screen
+            label_x_idx = int(start_x + (end_x - start_x) * 0.82)
+            ax.text(label_x_idx, level + y_range * 0.02, f"Key Level: ${level:.2f}",
+                    color='#FFD700', fontsize=12, fontweight='bold', ha='right', va='bottom',
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor='#0B0E14', edgecolor='#FFD700', alpha=0.85))
+
+        # Annotations pointing accurately to actual key levels inside screen limits
+        if stock_info.key_levels:
+            target_level = stock_info.key_levels[0]
+        else:
+            target_level = closes[-1]
+
+        arrow_x = int(start_x + (end_x - start_x) * 0.70)
+        text_x = int(start_x + (end_x - start_x) * 0.40)
+
+        h_type = stock_info.highlight_type.lower()
+        if h_type == "breakout":
+            ax.annotate('BREAKOUT ZONE',
+                        xy=(arrow_x, target_level),
+                        xytext=(text_x, target_level + y_range * 0.08),
+                        arrowprops=dict(facecolor='#00FFA3', edgecolor='#00FFA3', shrink=0.08, width=2, headwidth=7),
+                        fontsize=13, fontweight='bold', color='#00FFA3',
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor='#0B0E14', edgecolor='#00FFA3', alpha=0.85))
+        elif h_type == "support":
+            ax.annotate('SUPPORT LEVEL',
+                        xy=(arrow_x, target_level),
+                        xytext=(text_x, target_level - y_range * 0.08),
+                        arrowprops=dict(facecolor='#00E5FF', edgecolor='#00E5FF', shrink=0.08, width=2, headwidth=7),
+                        fontsize=13, fontweight='bold', color='#00E5FF',
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor='#0B0E14', edgecolor='#00E5FF', alpha=0.85))
+
+        fig.text(0.08, 0.90, f"{ticker} - {stock_info.company_spoken_name}", fontsize=26, fontweight='bold', color='#FFFFFF')
+        fig.text(0.08, 0.85, f"Verified Price: ${verified_price:.2f} | Timeframe: {stock_info.timeframe}", fontsize=14, color='#8B949E')
+
+        ax.grid(True, linestyle='--', alpha=0.15, color='#8B949E')
+        for spine in ['top', 'right']: ax.spines[spine].set_visible(False)
+        for spine in ['left', 'bottom']: ax.spines[spine].set_color('#30363D')
+
         canvas.draw()
         return np.asarray(canvas.buffer_rgba())[:, :, :3]
 
-    clip = VideoClip(make_frame, duration=duration).set_audio(voice_clip)
+    clip = VideoClip(make_frame, duration=duration).with_audio(voice_clip)
     return clip
 
 # ---------------------------------------------------------
 # Subtitles & Final Pipeline Assembly
 # ---------------------------------------------------------
+def get_system_font_path() -> str:
+    possible_fonts = [
+        r"C:\Windows\Fonts\arialbd.ttf",
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\calibri.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/Library/Fonts/Arial.ttf"
+    ]
+    for font_path in possible_fonts:
+        if os.path.exists(font_path):
+            return font_path
+    return "DejaVu-Sans"
+
+
 def add_subtitles(video_clip: VideoClip, text: str) -> CompositeVideoClip:
-    txt = TextClip(text, fontsize=36, color='yellow', font='Arial-Bold', method='caption', size=(video_clip.w * 0.8, None))
-    txt = txt.set_duration(video_clip.duration).set_position(('center', 0.85), relative=True)
-    return CompositeVideoClip([video_clip, txt])
+    clean_text = re.sub(r'[^\x00-\x7F]+', '', text).strip()
+
+    # Split text into sentences for synchronized line-by-line display
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', clean_text) if s.strip()]
+    if not sentences:
+        sentences = [clean_text]
+
+    words_per_sentence = [max(1, len(s.split())) for s in sentences]
+    total_words = sum(words_per_sentence)
+    total_duration = video_clip.duration
+
+    box_width = int(video_clip.w * 0.85)
+    box_height = 140
+    font_path = get_system_font_path()
+
+    subtitle_clips = [video_clip]
+    start_time = 0.0
+
+    for idx, (sent, w_count) in enumerate(zip(sentences, words_per_sentence)):
+        sent_duration = (w_count / total_words) * total_duration
+        if idx == len(sentences) - 1:
+            sent_duration = max(sent_duration, total_duration - start_time)
+
+        try:
+            txt = TextClip(
+                text=sent,
+                font=font_path,
+                font_size=34,
+                color='yellow',
+                method='caption',
+                size=(box_width, box_height)
+            ).with_start(start_time).with_duration(sent_duration).with_position(('center', 0.85), relative=True)
+
+            subtitle_clips.append(txt)
+        except Exception as e:
+            logger.warning(f"Failed to render subtitle for line '{sent}': {e}")
+
+        start_time += sent_duration
+
+    return CompositeVideoClip(subtitle_clips)
 
 def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
-    logger.info("🚀 Launching Perfect Daily Video Pipeline...")
+    logger.info("Launching Perfect Daily Video Pipeline...")
     temp_files = []
     timestamps = []
     current_time = 0.0
@@ -508,13 +687,13 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
     try:
         video_url = get_latest_micha_video_url()
         if not video_url:
-            raise ValueError("❌ Could not retrieve YouTube video URL from RSS.")
+            raise ValueError("Could not retrieve YouTube video URL from RSS.")
 
         video_id = extract_video_id(video_url)
         transcript = fetch_youtube_transcript_robust(video_id) if video_id else None
 
         if not transcript:
-            logger.warning("⚠️ Direct transcript unavailable for video. Attempting audio fallback...")
+            logger.warning("Direct transcript unavailable. Attempting audio fallback...")
             audio_mp3 = download_youtube_audio_fallback(video_url)
             temp_files.append(audio_mp3)
             transcript = transcribe_audio_with_gemini(audio_mp3)
@@ -537,7 +716,7 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
         timestamps.append(f"{format_seconds_to_timestamp(current_time)} Market Overview")
         current_time += intro_duration
 
-        # Step 5: Render Stock Clips with Annotations
+        # Step 5: Render Stock Clips
         stock_clips = []
         for stock_info in script_schema.analyzed_stocks:
             stock_audio_file = f"temp_{stock_info.ticker}.mp3"
@@ -552,11 +731,54 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
             timestamps.append(f"{format_seconds_to_timestamp(current_time)} {stock_info.ticker}")
             current_time += stock_duration
 
-        # Step 6: Concatenate & Export
-        final_video = concatenate_videoclips([intro_clip] + stock_clips)
-        final_video.write_videofile(output_filename, fps=30, codec="libx264", audio_codec="aac")
+        # Step 6: Render Outro Clip with CTA
+        outro_clip = render_outro_clip(duration=5.0)
 
-        logger.info("✅ Perfect Video Created Successfully!")
+        # Step 7: Concatenate Video Clips
+        final_video = concatenate_videoclips([intro_clip] + stock_clips + [outro_clip])
+
+        # Step 8: Mix Background Music from assets/weekly_recup_music.mp3
+        bgm_path = "assets/weekly_recup_music.mp3"
+        if os.path.exists(bgm_path):
+            logger.info(f"Mixing background music from {bgm_path}...")
+            try:
+                bgm = AudioFileClip(bgm_path)
+                # Loop BGM to video duration
+                if hasattr(afx, 'AudioLoop'):
+                    bgm = bgm.with_effects([afx.AudioLoop(duration=final_video.duration)])
+                elif hasattr(afx, 'audio_loop'):
+                    bgm = afx.audio_loop(bgm, duration=final_video.duration)
+                else:
+                    bgm = bgm.with_duration(final_video.duration)
+
+                # Set volume level (12%)
+                if hasattr(afx, 'MultiplyVolume'):
+                    bgm = bgm.with_effects([afx.MultiplyVolume(0.12)])
+                elif hasattr(afx, 'volumex'):
+                    bgm = bgm.filter(afx.volumex(0.12))
+                else:
+                    bgm = bgm.volumex(0.12)
+
+                if final_video.audio is not None:
+                    mixed_audio = CompositeAudioClip([final_video.audio, bgm])
+                    final_video = final_video.with_audio(mixed_audio)
+                else:
+                    final_video = final_video.with_audio(bgm)
+            except Exception as e:
+                logger.warning(f"Failed to mix background music: {e}")
+
+        # Step 9: Export Video
+        final_video.write_videofile(
+            output_filename,
+            fps=15,
+            codec="libx264",
+            audio_codec="aac",
+            threads=os.cpu_count() or 4,
+            preset="ultrafast",
+            ffmpeg_params=["-crf", "18"]
+        )
+
+        logger.info("Perfect Video Created Successfully!")
         logger.info("Chapters:\n" + "\n".join(timestamps))
 
     finally:
