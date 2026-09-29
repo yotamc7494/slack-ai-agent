@@ -804,7 +804,7 @@ def view_final_video():
 
     print("🎨 Creating High-Energy Graphics Overlay...")
     overlay_img_path = create_overlay_graphics(script_data, stock_data)
-    overlay_clip = ImageClip(overlay_img_path).set_duration(duration)
+    overlay_clip = ImageClip(overlay_img_path).with_duration(duration)
 
     print("📊 Rendering Animated Stock Chart...")
     chart_clip = make_animated_chart_video(stock_data, duration=duration, market_metrics=market_metrics)
