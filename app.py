@@ -36,7 +36,7 @@ if "WEBHOOK_TOKEN" in st.query_params:
         elif video_type == "daily_summery":
             # הפעלת הפייפליין המשודרג
             filename = "perfect_daily_recap.mp4"
-            run_perfect_pipeline(output_filename=filename)
+            run_perfect_pipeline(output_filename=filename, upload=True)
             st.success(f"✅ הסרטון נוצר בהצלחה: {filename}")
         elif video_type == "ping":
             print("Wakeup", flush=True)
@@ -169,10 +169,10 @@ if run_full_daily or run_test_daily:
     with st.spinner("מוריד תמלול, מאמת נתונים, מפיק TTS ומקליט וידאו..."):
         try:
             # הפעלת הפייפליין החדש
-            run_perfect_pipeline(output_filename=output_file)
+            run_perfect_pipeline(output_filename=output_file, upload=run_full_daily)
             st.success("🎉 סרטון הסיכום היומי נוצר בהצלחה!")
             
-            if os.path.exists(output_file):
+            if os.path.exists(output_file) and is_test_mode_d:
                 # 1. המרה ל-Base64 והורדה אוטומטית בדפדפן
                 with open(output_file, "rb") as file:
                     video_bytes = file.read()

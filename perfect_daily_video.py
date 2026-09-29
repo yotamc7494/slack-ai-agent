@@ -8,7 +8,8 @@ import re
 import xml.etree.ElementTree as ET
 from typing import List, Optional, Tuple
 from pydantic import BaseModel, Field
-
+from uploader import upload_video
+from thumbnail import generate_daily_thumbnail
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -684,13 +685,19 @@ def add_subtitles(video_clip: VideoClip, text: str) -> CompositeVideoClip:
 
     return CompositeVideoClip(subtitle_clips)
 
-def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
-    logger.info("Launching Perfect Daily Video Pipeline...")
+
+def run_perfect_pipeline(
+        output_filename="perfect_daily_recap.mp4",
+        bg_music_path="assets/weekly_recup_music.mp3",
+        upload=False
+):
+    logger.info("🚀 Launching Perfect Daily Video Pipeline...")
     temp_files = []
     timestamps = []
     current_time = 0.0
 
     try:
+        # === חלק 1: חילוץ ותמלול ===
         video_url = get_latest_micha_video_url()
         if not video_url:
             raise ValueError("Could not retrieve YouTube video URL from RSS.")
@@ -704,13 +711,13 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
             temp_files.append(audio_mp3)
             transcript = transcribe_audio_with_gemini(audio_mp3)
 
-        # Step 2: Extract & Verify Market Data
+        # === חלק 2: אימות נתוני שוק ===
         verified_data = extract_and_verify_ticker_data(transcript)
 
-        # Step 3: Structured Script Generation
+        # === חלק 3: יצירת תסריט וכותרות ב-LLM ===
         script_schema = generate_verified_script(transcript, verified_data)
 
-        # Step 4: Render Intro Clip
+        # === חלק 4: רינדור אקרו/אינטרו ===
         intro_audio_file = "temp_intro.mp3"
         intro_duration = generate_voiceover_audio(script_schema.intro_script, intro_audio_file)
         temp_files.append(intro_audio_file)
@@ -722,7 +729,7 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
         timestamps.append(f"{format_seconds_to_timestamp(current_time)} Market Overview")
         current_time += intro_duration
 
-        # Step 5: Render Stock Clips
+        # === חלק 5: רינדור סקציות המניות ===
         stock_clips = []
         for stock_info in script_schema.analyzed_stocks:
             stock_audio_file = f"temp_{stock_info.ticker}.mp3"
@@ -737,60 +744,85 @@ def run_perfect_pipeline(output_filename="perfect_daily_recap.mp4"):
             timestamps.append(f"{format_seconds_to_timestamp(current_time)} {stock_info.ticker}")
             current_time += stock_duration
 
-        # Step 6: Render Outro Clip with CTA
+        # === חלק 6: רינדור Outro ורישום Chapters ===
         outro_clip = render_outro_clip(duration=5.0)
+        timestamps.append(f"{format_seconds_to_timestamp(current_time)} Outro")
 
-        # Step 7: Concatenate Video Clips
+        # יצירת תיאור סופי ל-YouTube כולל Chapters
+        chapters_text = "\n\nCHAPTERS:\n" + "\n".join(timestamps)
+        final_description = (script_schema.description + chapters_text).strip()
+
+        # === חלק 7: איחוד קטעי הוידאו ===
         final_video = concatenate_videoclips([intro_clip] + stock_clips + [outro_clip])
 
-        # Step 8: Mix Background Music from assets/weekly_recup_music.mp3
-        bgm_path = "assets/weekly_recup_music.mp3"
-        if os.path.exists(bgm_path):
-            logger.info(f"Mixing background music from {bgm_path}...")
-            try:
-                bgm = AudioFileClip(bgm_path)
-                # Loop BGM to video duration
-                if hasattr(afx, 'AudioLoop'):
-                    bgm = bgm.with_effects([afx.AudioLoop(duration=final_video.duration)])
-                elif hasattr(afx, 'audio_loop'):
-                    bgm = afx.audio_loop(bgm, duration=final_video.duration)
-                else:
-                    bgm = bgm.with_duration(final_video.duration)
+        # === חלק 8: מוזיקת רקע (MoviePy 2.x) ===
+        if bg_music_path and os.path.exists(bg_music_path):
+            logger.info("🎵 Mixing background music...")
+            bg_music = AudioFileClip(bg_music_path)
 
-                # Set volume level (12%)
-                if hasattr(afx, 'MultiplyVolume'):
-                    bgm = bgm.with_effects([afx.MultiplyVolume(0.12)])
-                elif hasattr(afx, 'volumex'):
-                    bgm = bgm.filter(afx.volumex(0.12))
-                else:
-                    bgm = bgm.volumex(0.12)
+            if bg_music.duration < final_video.duration:
+                bg_music = bg_music.with_effects([afx.AudioLoop(duration=final_video.duration)])
+            else:
+                bg_music = bg_music.subclipped(0, final_video.duration)
 
-                if final_video.audio is not None:
-                    mixed_audio = CompositeAudioClip([final_video.audio, bgm])
-                    final_video = final_video.with_audio(mixed_audio)
-                else:
-                    final_video = final_video.with_audio(bgm)
-            except Exception as e:
-                logger.warning(f"Failed to mix background music: {e}")
+            bg_music = bg_music.with_effects([
+                afx.MultiplyVolume(0.12),
+                afx.AudioFadeOut(2.0)
+            ])
 
-        # Step 9: Export Video
+            final_video = final_video.with_audio(CompositeAudioClip([final_video.audio, bg_music]))
+
+        # === חלק 9: רינדור קובץ הווידאו הסופי ===
+        logger.info(f"💾 Rendering final video file: {output_filename}...")
         final_video.write_videofile(
             output_filename,
-            fps=15,
+            fps=30,
             codec="libx264",
             audio_codec="aac",
-            threads=os.cpu_count() or 4,
-            preset="ultrafast",
-            ffmpeg_params=["-crf", "18"]
+            bitrate="8000k",
+            logger=None,
+            threads=1,
+            preset="ultrafast"
         )
 
-        logger.info("Perfect Video Created Successfully!")
-        logger.info("Chapters:\n" + "\n".join(timestamps))
+        # === חלק 10: יצירת Thumbnail דינמי והעלאה ל-YouTube ===
+        img_path = None
+        if callable(generate_daily_thumbnail):
+            try:
+                img_path = generate_daily_thumbnail(
+                    sp500_val=float(market_data["SPY"][1]),
+                    sp500_pct=float(market_data["SPY"][0][-1]),
+                    qqq_val=float(market_data["QQQ"][1]),
+                    qqq_pct=float(market_data["QQQ"][0][-1]),
+                    btc_val=float(market_data["BTC"][1]),
+                    btc_pct=float(market_data["BTC"][0][-1]),
+                    date_str=market_data.get("date_str"),
+                    template_path="assets/Thumbnail_Daily.jpg",
+                    output_path="d_thumbnail.png",
+                )
+            except Exception as e:
+                logger.error(f"⚠️ Thumbnail generation failed: {e}")
+
+        if upload and callable(upload_video):
+            logger.info("🚀 Uploading video to YouTube...")
+            upload_video(
+                video_file=output_filename,
+                title=script_schema.youtube_title,
+                description=final_description,
+                tags=script_schema.tags,
+                thumbnail_path=img_path
+            )
+
+        logger.info("✅ Pipeline executed successfully!")
+        return output_filename
 
     finally:
-        for f in temp_files:
-            if os.path.exists(f):
-                os.remove(f)
-
+        logger.info("🧹 Cleaning up temporary audio/script files...")
+        for tmp in temp_files:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except Exception as e:
+                    logger.warning(f"Failed to remove temp file {tmp}: {e}")
 if __name__ == "__main__":
     run_perfect_pipeline()
