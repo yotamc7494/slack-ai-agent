@@ -672,8 +672,8 @@ def make_animated_chart_video(stock_data, duration, market_metrics=None, size=(1
         return render_rgba_frame(t)[:, :, 3] / 255.0
 
     chart_clip = VideoClip(make_rgb_frame, duration=duration)
-    mask_clip = VideoClip(make_mask_frame, duration=duration, ismask=True)
-    chart_clip = chart_clip.set_mask(mask_clip)
+    mask_clip = VideoClip(make_mask_frame, duration=duration, is_mask=True)
+    chart_clip = chart_clip.with_mask(mask_clip)
 
     plt.close(fig)
     return chart_clip
