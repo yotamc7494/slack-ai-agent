@@ -798,7 +798,7 @@ def view_final_video():
         if c_dur <= 0.05:
             continue
         c_clip, tmp_img = create_caption_clip(cap['text'], c_dur)
-        c_clip = c_clip.set_start(cap['start']).set_position(('center', 1420))
+        c_clip = c_clip.with_start(cap['start']).with_position(('center', 1420))
         caption_clips.append(c_clip)
         temp_cap_files.append(tmp_img)
 
