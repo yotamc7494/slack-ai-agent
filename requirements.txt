@@ -9,7 +9,7 @@ numpy
 pandas
 pillow
 google-genai
-moviepy
+moviepy>=2.0.0
 imageio-ffmpeg
 python-dotenv
 google-auth
