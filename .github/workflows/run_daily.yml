@@ -1,11 +1,16 @@
-name: Trigger Streamlit Webhook 2x Daily
+name: Trigger Streamlit Webhook
 
 on:
   schedule:
-    # 1. 12:14 UTC (08:14 EDT / 07:14 EST) - בוקר: ימי ראשון עד שישי (0=ראשון, 1-5=שני עד שישי)
-    - cron: '14 12 * * 0-5'
-    # 2. 21:21 UTC (17:21 EDT / 16:21 EST) - סגירת מסחר: ימי שני עד שישי בלבד
-    - cron: '21 21 * * 1-5'
+    # 1. 12:14 UTC (08:14 EDT / 15:14 ישראל) - בוקר לפני פתיחת מסחר (כל יום)
+    # בימי מסחר: update_video | בסוף שבוע / ימי סגירה: vs_video
+    - cron: '14 12 * * *'
+
+    # 2. 17:25 UTC (13:25 EDT / 20:25 ישראל) - שעה ויראלית באמצע היום (כל יום) -> vs_video
+    - cron: '25 17 * * *'
+
+    # 3. 22:21 UTC (18:21 EDT / 01:21 ישראל) - סגירת מסחר + שעה (שעה אחרי הסרטון של מיכה, שני-שישי) -> daily_summery
+    - cron: '21 22 * * 1-5'
 
   workflow_dispatch:
     inputs:
@@ -17,6 +22,7 @@ on:
         options:
           - vs_video
           - update_video
+          - daily_summery
           - weekly_summary
 
 jobs:
@@ -52,20 +58,25 @@ jobs:
               video_type = manual_input
           else:
               now_et = datetime.now(ZoneInfo('America/New_York'))
-              weekday = now_et.weekday()  # 0=Monday, ..., 4=Friday, 5=Saturday, 6=Sunday
-              is_morning = now_et.hour < 12
+              weekday = now_et.weekday()  # 0=שני, 1=שלישי, ..., 4=שישי, 5=שבת, 6=ראשון
+              hour = now_et.hour
+              is_trading_day = weekday < 5  # ימי מסחר (שני עד שישי)
 
-              if weekday == 6 and is_morning:
-                  # יום ראשון בבוקר (בשעת פתיחת המסחר המשוערת) -> weekly_summary
-                  video_type = 'weekly_summary'
-              elif weekday < 5 and is_morning:
-                  # יום מסחר בבוקר (שני עד שישי) -> vs_video
-                  video_type = 'vs_video'
-              elif weekday < 5 and not is_morning:
-                  # יום מסחר בסוף היום (שני עד שישי) -> update_video
-                  video_type = 'update_video'
+              if hour >= 17:
+                  # הרצת סוף יום (22:21 UTC / 18:21 EDT - שעה אחרי מיכה)
+                  if is_trading_day:
+                      video_type = 'daily_summery'
+                  else:
+                      video_type = 'vs_video'
+              elif hour < 11:
+                  # הרצת בוקר לפני פתיחת מסחר (12:14 UTC / 08:14 EDT)
+                  if is_trading_day:
+                      video_type = 'update_video'
+                  else:
+                      # בימים שהשוק סגור -> מריץ vs_video
+                      video_type = 'vs_video'
               else:
-                  # ברירת מחדל למקרים חריגים (כמו הרצה בשבת)
+                  # שעה ויראלית באמצע היום (17:25 UTC / 13:25 EDT) -> vs_video
                   video_type = 'vs_video'
 
           token = os.environ.get('WEBHOOK_TOKEN', '')
