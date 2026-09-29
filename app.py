@@ -16,7 +16,6 @@ from perfect_daily_video import run_perfect_pipeline
 st.set_page_config(page_title="AI Stock Video Generator", page_icon="🚀")
 
 st.title("🚀 מחולל סרטוני מניות - מעקף ידני")
-
 # --- תמיכה ב-Webhook מ-GitHub Actions ---
 if "WEBHOOK_TOKEN" in st.query_params:
     if st.query_params["WEBHOOK_TOKEN"] == st.secrets.get("WEBHOOK_TOKEN"):

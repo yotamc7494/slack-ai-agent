@@ -32,7 +32,7 @@ from moviepy import (
 )
 import moviepy.audio.fx as afx
 from dotenv import load_dotenv
-
+logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 load_dotenv()
 
 # ---------------------------------------------------------
