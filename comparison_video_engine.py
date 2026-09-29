@@ -18,12 +18,16 @@ if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.LANCZOS
 from dotenv import load_dotenv
 import yfinance as yf
-
-# Imports מעודכנים של MoviePy
-import moviepy.audio.fx.all as afx
-import moviepy.video.fx.all as vfx  # חובה לאפקטים של ווידאו
-from moviepy.editor import VideoClip, AudioFileClip, concatenate_videoclips, VideoFileClip, CompositeVideoClip
-
+from moviepy import (
+    AudioFileClip,
+    VideoFileClip,
+    VideoClip,
+    CompositeVideoClip,
+    CompositeAudioClip,
+    concatenate_videoclips,
+)
+import moviepy.audio.fx as afx
+import moviepy.video.fx as vfx
 from uploader import upload_video
 
 SECTORS = {
