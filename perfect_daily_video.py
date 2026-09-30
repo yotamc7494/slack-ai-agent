@@ -282,7 +282,7 @@ def transcribe_audio_with_gemini(audio_path: str) -> str:
 
     glossary_prompt = """
     תמלל את סרטון הסקירה הפיננסית במיקוד גבוה.
-    
+
     מילון מונחים ודגשי תעתיק (השתמש במונחים אלה לדיוק מירבי):
     - מדדים ומניות: S&P 500, נאסד"ק (Nasdaq), ביטקוין (Bitcoin), QQQ, SPY, NVDA, TSLA, AAPL, AMZN, MSFT, GOOGL, META, AMD, INTEL.
     - מושגי מסחר: אופציות, פוטים (Puts), קולים (Calls), שורט (Short), לונג (Long), תמיכה (Support), התנגדות (Resistance), פריצה (Breakout), נר פטיש (Hammer Candle), נר היפוך, מחזור מסחר (Volume), גאפ (Gap).
@@ -347,18 +347,26 @@ def generate_verified_script(transcript: str, verified_market_data: dict) -> Ful
     Verified Market Data (MUST USE THESE EXACT NUMBERS):
     {json.dumps(verified_market_data, indent=2)}
 
-    CRITICAL SCRIPTING & CTA RULES:
-    1. "intro_script": ULTRA-SHORT SCROLL-STOPPING HOOK (STRICTLY 15 TO 25 WORDS, ~5-7 SECONDS). 
-       - DO NOT give a broad market summary. Focus ONLY on the single biggest market shock, catalyst, or extreme price move across QQQ, SPY, or BTC.
-       - Use high-impact, dramatic trigger words (e.g., 'Wall Street is in panic mode', 'Massive breakout underway', 'Liquidation wave hitting markets').
-       - Transition IMMEDIATELY into the stock breakdowns without fluff.
+    CRITICAL SCRIPTING & STRUCTURE RULES:
 
-    2. "analyzed_stocks": Max 4 key stocks. Provide exact technical key levels (e.g. [120.0, 125.0]).
-       - In the narrative script, DO NOT just give flat facts. Explicitly explain WHAT is expected to happen when price reaches those key levels (e.g., "If Nvidia breaks above 125, expect a rally toward 135. But if support at 120 fails, a quick drop is coming!").
-       - End each stock breakdown with a sharp, context-aware closing line tied directly to the key price level (e.g., 'If 125 holds, this could squeeze fast—if not, watch out below.', or '120 is the absolute line in the sand tomorrow.'). NEVER use repetitive generic phrases like 'Drop your thoughts below' or 'What do you think'.
+    1. "intro_script": DYNAMIC 4-STEP RETENTION HOOK (~15-20 SECONDS).
+       Follow this exact structural sequence, but ALWAYS vary the actual phrasing and vocabulary dynamically so daily scripts never sound identical:
+       - STEP 1 (Market Shock Hook): High-impact, dramatic reaction to the day's market action (e.g., "Wall Street just took a massive hit today," "Bulls are charging back with a vengeance").
+       - STEP 2 (Viewer Hook): Direct call to the viewer to engage them (e.g., "Let's break down the madness together," "Here is what you need to know right now").
+       - STEP 3 (Market Overview & Catalyst): State the technical moves (% change in SPY/QQQ/BTC) and briefly explain the underlying macro reason for the broad move.
+       - STEP 4 (Transition): A fast, sharp bridge into individual stock breakdowns.
 
-    3. ABSOLUTELY NO EMOJIS in any field (title, description, scripts, tags). Emojis fail to render properly.
-    4. Accentuate actionable key levels and price targets.
+    2. "analyzed_stocks": Max 4 key stocks. For EVERY stock script, you MUST follow this strict 3-part formula:
+       - HOW MUCH IT MOVED: Explicitly state the exact price move or percentage shift from the verified data.
+       - WHY IT MOVED: Clear, punchy explanation of the catalyst or driver behind the move (earnings, analyst upgrade, macro shift, news event).
+       - FORECAST & SCENARIOS: Highlight exact key levels (e.g. [120.0, 125.0]) with explicit "IF/THEN" projections (e.g., "If 120 holds, target 125 next—if 120 breaks, expect a drop toward 110").
+       - CLOSING LINE: End each stock with a unique, punchy line tied to its key technical price level. NEVER use generic lines like "What do you think?" or "Drop your thoughts below".
+
+    3. DYNAMIC VARIATION & TONE:
+       - Maintain a fast-paced, high-energy Wall Street vibe.
+       - Actively vary sentence structures, transition words, and hook phrasing between runs to prevent repetitive phrasing.
+
+    4. ABSOLUTELY NO EMOJIS in any field (title, description, scripts, tags) as they fail to render properly.
     """
 
     response = client.models.generate_content(
